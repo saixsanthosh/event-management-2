@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Event Registration</title>
+
+    <!-- MAIN CSS -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- GOOGLE FONT -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FONT AWESOME -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        .login-box.student-ratio .login-left {
+            flex: 0 0 25%;
+            max-width: 25%;
+        }
+
+        .login-box.student-ratio .login-right {
+            flex: 0 0 75%;
+            max-width: 75%;
+        }
+
+        @media (max-width: 900px) {
+            .login-box.student-ratio .login-left,
+            .login-box.student-ratio .login-right {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<script>
+  // Allow page scroll when content exceeds viewport
+  document.addEventListener("DOMContentLoaded", () => {
+      document.body.style.overflow = "auto";
+  });
+</script>
+
+<!-- THEME TOGGLE -->
+<div class="theme-toggle" id="themeToggle">
+    <i class="fas fa-moon"></i>
+</div>
+
+<!-- BACKGROUND -->
+<div class="bg-animation">
+    <div class="floating-shapes">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+    </div>
+</div>
+
+<!-- CONTAINER -->
+<div class="login-container">
+    <div class="login-box student-ratio">
+
+        <!-- LEFT PANEL -->
+        <div class="login-left">
+            <div class="brand-content">
+                <div class="logo-icon">
+                    <i class="fas fa-user-graduate"></i>
+                </div>
+                <h1>Student Portal</h1>
+                <p>Register & Participate</p>
+
+                <div class="features-list">
+                    <div class="feature-item"><i class="fas fa-calendar"></i><span>View Events</span></div>
+                    <div class="feature-item"><i class="fas fa-user-plus"></i><span>Apply Roles</span></div>
+                    <div class="feature-item"><i class="fas fa-qrcode"></i><span>QR Entry</span></div>
+                    <div class="feature-item"><i class="fas fa-credit-card"></i><span>Easy Payment</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="login-right">
+            <div class="login-form-container">
+
+                <div class="form-header">
+                    <h2>Event Registration</h2>
+                    <p>No login required</p>
+                </div>
+
+                <form onsubmit="submitForm(event)">
+
+                    <div class="input-group">
+                        <input required placeholder="Full Name" id="studentName">
+                    </div>
+
+                    <div class="input-group">
+                        <input required placeholder="College Name" id="studentCollege">
+                    </div>
+
+                    <div class="input-group">
+                        <input required placeholder="Department / Class" id="studentDepartment">
+                    </div>
+
+                    <div class="input-group">
+                        <input required type="email" placeholder="Email ID" id="studentEmail">
+                    </div>
+
+                    <div class="input-group">
+                        <input required type="tel" placeholder="Mobile Number" id="studentMobile">
+                    </div>
+
+                    <div class="input-group">
+                        <select required id="eventSelect" style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--input-bg);color:var(--text-primary)">
+                            <option value="">Select Event</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <select required id="subEventSelect" style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--input-bg);color:var(--text-primary)">
+                            <option value="">Select Sub Event</option>
+                        </select>
+                    </div>
+
+                    <input type="hidden" id="applyAsSelect" value="Participant">
+
+                    <button class="login-btn" type="submit">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Submit Registration</span>
+                    </button>
+
+                </form>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- AI CHAT WIDGET -->
+<div id="aiWidgetBtn" style="position:fixed;right:26px;bottom:26px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white;box-shadow:0 10px 24px rgba(0,0,0,0.2);cursor:pointer;z-index:9998">
+    <i class="fas fa-robot"></i>
+</div>
+
+<div id="aiWidgetPanel" style="position:fixed;right:26px;bottom:96px;width:320px;max-width:85vw;background:var(--card-bg);border:1px solid var(--border-color);border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,0.2);padding:16px;display:none;z-index:9999;color:var(--text-primary)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-weight:600">AI Help</div>
+        <button id="aiWidgetClose" style="border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:1rem">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="input-group">
+        <input id="aiQuestion" placeholder="Type your question...">
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+        <button class="login-btn" id="aiAskBtn">
+            <i class="fas fa-paper-plane"></i>
+            <span>Ask</span>
+        </button>
+        <button class="login-btn" id="aiClearBtn" style="background:#64748b">
+            <i class="fas fa-eraser"></i>
+            <span>Clear</span>
+        </button>
+    </div>
+    <div id="aiAnswer" style="border:1px solid var(--border-color);border-radius:12px;padding:12px;color:var(--text-muted);background:var(--input-bg);max-height:180px;overflow:auto">
+        Ask a question to get instant help.
+    </div>
+    <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+        <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="How do I register?">How do I register?</button>
+        <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="How do I pay with UPI?">How do I pay with UPI?</button>
+        <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="How to apply as coordinator?">How to apply as coordinator?</button>
+        <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="What if I already registered?">What if I already registered?</button>
+        <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="Is login required?">Is login required?</button>
+    </div>
+</div>
+
+<!-- JS -->
+<script src="js/main.js"></script>
+
+<script>
+const eventSelect = document.getElementById("eventSelect");
+const subEventSelect = document.getElementById("subEventSelect");
+
+async function loadEvents() {
+    try {
+        const res = await fetch(`${API_BASE}/api/events`);
+        const events = await res.json();
+        eventSelect.innerHTML = `<option value="">Select Event</option>`;
+
+        events.forEach(event => {
+            const option = document.createElement("option");
+            option.value = event.id;
+            option.textContent = event.name;
+            eventSelect.appendChild(option);
+        });
+    } catch (err) {
+        console.error(err);
+        alert("Unable to load events");
+    }
+}
+
+async function loadSubEvents(eventId) {
+    subEventSelect.innerHTML = `<option value="">Select Sub Event</option>`;
+    if (!eventId) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/subevents/${eventId}`);
+        const subEvents = await res.json();
+        subEvents.forEach(sub => {
+            const option = document.createElement("option");
+            option.value = sub.id;
+            option.textContent = sub.name;
+            subEventSelect.appendChild(option);
+        });
+    } catch (err) {
+        console.error(err);
+        alert("Unable to load sub-events");
+    }
+}
+
+eventSelect.addEventListener("change", (e) => {
+    loadSubEvents(e.target.value);
+});
+
+async function submitForm(e) {
+    e.preventDefault();
+
+    const name = document.getElementById("studentName").value.trim();
+    const college = document.getElementById("studentCollege").value.trim();
+    const department = document.getElementById("studentDepartment").value.trim();
+    const email = document.getElementById("studentEmail").value.trim();
+    const mobile = document.getElementById("studentMobile").value.trim();
+    const subEventId = subEventSelect.value;
+    const applyAs = "Participant";
+
+    if (!name || !college || !department || !email || !mobile || !subEventId) {
+        alert("Please fill all required fields");
+        return;
+    }
+
+    try {
+        const pending = {
+            name,
+            college,
+            department,
+            email,
+            mobile,
+            subEventId
+        };
+        localStorage.setItem("pendingRegistration", JSON.stringify(pending));
+        alert("Please complete payment to confirm registration.");
+        window.location.href = "payment.html";
+    } catch (err) {
+        console.error(err);
+        alert("Unable to continue to payment");
+    }
+}
+
+const aiQuestionInput = document.getElementById("aiQuestion");
+const aiAnswerBox = document.getElementById("aiAnswer");
+const aiAskBtn = document.getElementById("aiAskBtn");
+const aiClearBtn = document.getElementById("aiClearBtn");
+const aiWidgetBtn = document.getElementById("aiWidgetBtn");
+const aiWidgetPanel = document.getElementById("aiWidgetPanel");
+const aiWidgetClose = document.getElementById("aiWidgetClose");
+
+const AI_FAQ = [
+    {
+        keywords: ["register", "registration", "sign up", "how to register", "join"],
+        answer: "Choose an Event and Sub Event, fill your details, then click Submit Registration. You will get a QR after success."
+    },
+    {
+        keywords: ["payment", "upi", "transaction", "qr", "paid", "pay", "fee"],
+        answer: "Scan the UPI QR, pay, and enter the Transaction ID. Your payment will be verified by the admin."
+    },
+    {
+        keywords: ["transaction id", "txn", "utr", "reference"],
+        answer: "Enter the UPI Transaction ID after payment so the admin can verify it."
+    },
+    {
+        keywords: ["coordinator", "volunteer", "apply", "role"],
+        answer: "Use Apply As to choose Coordinator or Volunteer, then submit the form and wait for approval."
+    },
+    {
+        keywords: ["participant", "attend", "participate"],
+        answer: "Select Apply As = Participant and submit the form to register for the event."
+    },
+    {
+        keywords: ["event", "sub event", "sub-event", "activity", "list"],
+        answer: "Select the main event first. The sub-events list will update automatically."
+    },
+    {
+        keywords: ["email", "mobile", "phone", "contact"],
+        answer: "Please enter a valid email and mobile number so you can be contacted."
+    },
+    {
+        keywords: ["certificate", "attendance"],
+        answer: "Attendance may be used for certificates. Check with the event coordinator for details."
+    },
+    {
+        keywords: ["approval", "approved", "rejected", "pending"],
+        answer: "Applications go through approval. If approved, you will be informed by the organizers."
+    },
+    {
+        keywords: ["duplicate", "already registered", "again"],
+        answer: "If you already registered for a sub-event, duplicate registrations are blocked."
+    },
+    {
+        keywords: ["edit", "change", "update"],
+        answer: "If you made a mistake, contact the event organizers to update your details."
+    },
+    {
+        keywords: ["login", "account", "password"],
+        answer: "No login is required for students to register or apply."
+    },
+    {
+        keywords: ["time", "date", "venue", "location"],
+        answer: "Event date/time/venue are shown in the event details. Select the event to view them."
+    }
+];
+
+const AI_FALLBACK = [
+    "I can help with registration, payments, coordinator/volunteer applications, and event selection.",
+    "Try asking about registration, payment (UPI), applying as coordinator/volunteer, or event/sub-event selection.",
+    "You can ask about payments, approvals, or how to register for an event."
+];
+
+function normalizeQuestion(text) {
+    return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function scoreMatch(question, keywords) {
+    let score = 0;
+    keywords.forEach(k => {
+        const key = k.toLowerCase();
+        if (question.includes(key)) score += 2;
+        const parts = key.split(" ");
+        if (parts.length > 1 && parts.every(p => question.includes(p))) score += 1;
+    });
+    return score;
+}
+
+function getAiResponse(question) {
+    const q = normalizeQuestion(question);
+    let best = null;
+    let bestScore = 0;
+    AI_FAQ.forEach(item => {
+        const s = scoreMatch(q, item.keywords);
+        if (s > bestScore) {
+            bestScore = s;
+            best = item;
+        }
+    });
+    if (best && bestScore > 0) return best.answer;
+    const when = findEventDateAnswer(q);
+    if (when) return when;
+    return AI_FALLBACK[Math.floor(Math.random() * AI_FALLBACK.length)];
+}
+
+function findEventDateAnswer(question) {
+    if (!eventSelect || !eventSelect.options || eventSelect.options.length === 0) return "";
+    const keywordHit = /when|date|time|held|schedule|timing/.test(question);
+    if (!keywordHit) return "";
+    const selected = eventSelect.value;
+    const fallbackName = selected || (eventSelect.options[1] ? eventSelect.options[1].textContent : "");
+    const name = fallbackName || "the selected event";
+    if (!selected) {
+        return `Please select an event first so I can tell you when ${name} is held.`;
+    }
+    return `Please check the event details for ${name}. The date/time is shown there.`;
+}
+
+function askAi() {
+    if (!aiQuestionInput || !aiAnswerBox) return;
+    const question = aiQuestionInput.value.trim();
+    if (!question) {
+        aiAnswerBox.textContent = "Please type a question.";
+        return;
+    }
+    aiAnswerBox.textContent = getAiResponse(question);
+}
+
+function toggleAiWidget(open) {
+    if (!aiWidgetPanel) return;
+    const shouldOpen = typeof open === "boolean" ? open : aiWidgetPanel.style.display === "none";
+    aiWidgetPanel.style.display = shouldOpen ? "block" : "none";
+}
+
+if (aiWidgetBtn) {
+    aiWidgetBtn.addEventListener("click", () => toggleAiWidget(true));
+}
+
+if (aiWidgetClose) {
+    aiWidgetClose.addEventListener("click", () => toggleAiWidget(false));
+}
+
+if (aiAskBtn) {
+    aiAskBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        askAi();
+    });
+}
+
+if (aiClearBtn) {
+    aiClearBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (aiQuestionInput) aiQuestionInput.value = "";
+        if (aiAnswerBox) aiAnswerBox.textContent = "Ask a question to get instant help.";
+    });
+}
+
+document.querySelectorAll("[data-suggested]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const text = btn.getAttribute("data-suggested") || "";
+        if (aiQuestionInput) aiQuestionInput.value = text;
+        askAi();
+    });
+});
+
+document.addEventListener("DOMContentLoaded", loadEvents);
+</script>
+
+</body>
+</html>

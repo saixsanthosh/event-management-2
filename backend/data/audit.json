@@ -1,0 +1,762 @@
+[
+  {
+    "id": 1,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T17:13:50.518Z"
+  },
+  {
+    "id": 2,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T17:28:37.380Z"
+  },
+  {
+    "id": 3,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 4: TEXAS",
+    "at": "2026-02-04T17:40:33.028Z"
+  },
+  {
+    "id": 4,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 4 deleted",
+    "at": "2026-02-04T17:40:42.920Z"
+  },
+  {
+    "id": 5,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3 deleted",
+    "at": "2026-02-04T17:41:00.584Z"
+  },
+  {
+    "id": 6,
+    "action": "Apply Role",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Coordinator application 3 for sub-event 1",
+    "at": "2026-02-04T17:42:26.455Z"
+  },
+  {
+    "id": 7,
+    "action": "Delete Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 3 deleted",
+    "at": "2026-02-04T18:35:29.136Z"
+  },
+  {
+    "id": 8,
+    "action": "Delete Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 4 deleted",
+    "at": "2026-02-04T18:35:33.778Z"
+  },
+  {
+    "id": 9,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T20:37:46.840Z"
+  },
+  {
+    "id": 10,
+    "action": "Login",
+    "actor": "faculty",
+    "role": "Faculty",
+    "details": "User logged in",
+    "at": "2026-02-04T20:39:48.810Z"
+  },
+  {
+    "id": 11,
+    "action": "Update Role Application",
+    "actor": 2,
+    "role": "Faculty",
+    "details": "Application 3 -> Approved",
+    "at": "2026-02-04T20:39:57.950Z"
+  },
+  {
+    "id": 12,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-04T20:40:15.908Z"
+  },
+  {
+    "id": 13,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T20:40:39.361Z"
+  },
+  {
+    "id": 14,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T20:54:51.856Z"
+  },
+  {
+    "id": 15,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T20:58:56.825Z"
+  },
+  {
+    "id": 16,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3: TEXAS",
+    "at": "2026-02-04T21:03:27.584Z"
+  },
+  {
+    "id": 17,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3 deleted",
+    "at": "2026-02-04T21:03:45.312Z"
+  },
+  {
+    "id": 18,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T21:06:12.712Z"
+  },
+  {
+    "id": 19,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T21:11:04.665Z"
+  },
+  {
+    "id": 20,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T21:17:48.730Z"
+  },
+  {
+    "id": 21,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3: TEXAS",
+    "at": "2026-02-04T21:22:51.916Z"
+  },
+  {
+    "id": 22,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T21:53:31.807Z"
+  },
+  {
+    "id": 23,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-04T21:53:46.168Z"
+  },
+  {
+    "id": 24,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T21:54:40.930Z"
+  },
+  {
+    "id": 25,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 4: ALPHA",
+    "at": "2026-02-04T21:56:46.303Z"
+  },
+  {
+    "id": 26,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 4 deleted",
+    "at": "2026-02-04T21:56:56.319Z"
+  },
+  {
+    "id": 27,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 3: PAPER PRESENTATION (Event 1)",
+    "at": "2026-02-04T22:07:18.576Z"
+  },
+  {
+    "id": 28,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 4: DEBUGGING (Event 1)",
+    "at": "2026-02-04T22:07:45.497Z"
+  },
+  {
+    "id": 29,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 5: SINGING (Event 2)",
+    "at": "2026-02-04T22:08:38.241Z"
+  },
+  {
+    "id": 30,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 6: DANCING (Event 3)",
+    "at": "2026-02-04T22:09:16.842Z"
+  },
+  {
+    "id": 31,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 7: SINGING (Event 3)",
+    "at": "2026-02-04T22:09:58.339Z"
+  },
+  {
+    "id": 32,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-04T22:35:13.887Z"
+  },
+  {
+    "id": 33,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T22:37:44.723Z"
+  },
+  {
+    "id": 34,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T22:46:15.213Z"
+  },
+  {
+    "id": 35,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-04T22:46:53.202Z"
+  },
+  {
+    "id": 36,
+    "action": "Login",
+    "actor": "faculty",
+    "role": "Faculty",
+    "details": "User logged in",
+    "at": "2026-02-04T22:47:09.743Z"
+  },
+  {
+    "id": 37,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-04T22:51:30.793Z"
+  },
+  {
+    "id": 38,
+    "action": "Login",
+    "actor": "dean",
+    "role": "Dean",
+    "details": "User logged in",
+    "at": "2026-02-04T22:51:41.426Z"
+  },
+  {
+    "id": 39,
+    "action": "Login",
+    "actor": "vp",
+    "role": "VP",
+    "details": "User logged in",
+    "at": "2026-02-04T22:51:55.317Z"
+  },
+  {
+    "id": 40,
+    "action": "Login",
+    "actor": "volunteer",
+    "role": "Volunteer",
+    "details": "User logged in",
+    "at": "2026-02-04T22:52:18.601Z"
+  },
+  {
+    "id": 41,
+    "action": "Login",
+    "actor": "volunteer",
+    "role": "Volunteer",
+    "details": "User logged in",
+    "at": "2026-02-04T22:55:56.135Z"
+  },
+  {
+    "id": 42,
+    "action": "Login",
+    "actor": "coordinator",
+    "role": "Coordinator",
+    "details": "User logged in",
+    "at": "2026-02-04T22:56:49.670Z"
+  },
+  {
+    "id": 43,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 4 for sub-event 1",
+    "at": "2026-02-04T23:04:29.284Z"
+  },
+  {
+    "id": 44,
+    "action": "Apply Role",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Coordinator application 4 for sub-event 2",
+    "at": "2026-02-04T23:05:49.637Z"
+  },
+  {
+    "id": 45,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T23:27:56.583Z"
+  },
+  {
+    "id": 46,
+    "action": "Send Event For Approval",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3: TEXAS -> Faculty",
+    "at": "2026-02-04T23:46:05.107Z"
+  },
+  {
+    "id": 47,
+    "action": "Login",
+    "actor": "faculty",
+    "role": "Faculty",
+    "details": "User logged in",
+    "at": "2026-02-04T23:46:25.794Z"
+  },
+  {
+    "id": 48,
+    "action": "Event Decision",
+    "actor": 2,
+    "role": "Faculty",
+    "details": "Event 3: TEXAS -> Pending @ HOD",
+    "at": "2026-02-04T23:46:32.309Z"
+  },
+  {
+    "id": 49,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-04T23:46:43.337Z"
+  },
+  {
+    "id": 50,
+    "action": "Event Decision",
+    "actor": 3,
+    "role": "HOD",
+    "details": "Event 3: TEXAS -> Revision Requested @ President",
+    "at": "2026-02-04T23:46:46.958Z"
+  },
+  {
+    "id": 51,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T23:47:00.115Z"
+  },
+  {
+    "id": 52,
+    "action": "Send Event For Approval",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3: TEXAS -> Faculty",
+    "at": "2026-02-04T23:47:07.653Z"
+  },
+  {
+    "id": 53,
+    "action": "Login",
+    "actor": "faculty",
+    "role": "Faculty",
+    "details": "User logged in",
+    "at": "2026-02-04T23:52:43.810Z"
+  },
+  {
+    "id": 54,
+    "action": "Event Decision",
+    "actor": 2,
+    "role": "Faculty",
+    "details": "Event 3: TEXAS -> Pending @ HOD",
+    "at": "2026-02-04T23:52:46.105Z"
+  },
+  {
+    "id": 55,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-04T23:52:54.813Z"
+  },
+  {
+    "id": 56,
+    "action": "Event Decision",
+    "actor": 3,
+    "role": "HOD",
+    "details": "Event 3: TEXAS -> Revision Requested @ President",
+    "at": "2026-02-04T23:52:57.137Z"
+  },
+  {
+    "id": 57,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-04T23:53:06.550Z"
+  },
+  {
+    "id": 58,
+    "action": "Send Event For Approval",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3: TEXAS -> Faculty",
+    "at": "2026-02-04T23:53:12.223Z"
+  },
+  {
+    "id": 59,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T08:54:19.057Z"
+  },
+  {
+    "id": 60,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T08:55:00.847Z"
+  },
+  {
+    "id": 61,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 5 for sub-event 4",
+    "at": "2026-02-05T09:07:03.608Z"
+  },
+  {
+    "id": 62,
+    "action": "Submit Payment",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Payment 2 txn 9087656789655",
+    "at": "2026-02-05T09:07:03.618Z"
+  },
+  {
+    "id": 63,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T09:08:14.090Z"
+  },
+  {
+    "id": 64,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 6 for sub-event 2",
+    "at": "2026-02-05T09:35:52.830Z"
+  },
+  {
+    "id": 65,
+    "action": "Submit Payment",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Payment 3 txn 45678976578908765",
+    "at": "2026-02-05T09:35:52.840Z"
+  },
+  {
+    "id": 66,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T09:36:20.313Z"
+  },
+  {
+    "id": 67,
+    "action": "Login",
+    "actor": "coordinator",
+    "role": "Coordinator",
+    "details": "User logged in",
+    "at": "2026-02-05T09:39:10.577Z"
+  },
+  {
+    "id": 68,
+    "action": "Login",
+    "actor": "coordinator",
+    "role": "Coordinator",
+    "details": "User logged in",
+    "at": "2026-02-05T09:39:20.623Z"
+  },
+  {
+    "id": 69,
+    "action": "Login",
+    "actor": "coordinator",
+    "role": "Coordinator",
+    "details": "User logged in",
+    "at": "2026-02-05T09:39:31.133Z"
+  },
+  {
+    "id": 70,
+    "action": "Login",
+    "actor": "volunteer",
+    "role": "Volunteer",
+    "details": "User logged in",
+    "at": "2026-02-05T09:40:33.846Z"
+  },
+  {
+    "id": 71,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T09:41:22.184Z"
+  },
+  {
+    "id": 72,
+    "action": "Verify Payment",
+    "actor": 1,
+    "role": "President",
+    "details": "Payment 2 -> Rejected",
+    "at": "2026-02-05T09:43:37.694Z"
+  },
+  {
+    "id": 73,
+    "action": "Verify Payment",
+    "actor": 1,
+    "role": "President",
+    "details": "Payment 3 -> Rejected",
+    "at": "2026-02-05T09:43:38.477Z"
+  },
+  {
+    "id": 74,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 1 deleted",
+    "at": "2026-02-05T09:44:14.353Z"
+  },
+  {
+    "id": 75,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 2 deleted",
+    "at": "2026-02-05T09:44:20.065Z"
+  },
+  {
+    "id": 76,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 3 deleted",
+    "at": "2026-02-05T09:44:25.734Z"
+  },
+  {
+    "id": 77,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T11:06:41.453Z"
+  },
+  {
+    "id": 78,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T11:07:49.347Z"
+  },
+  {
+    "id": 79,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T11:24:08.539Z"
+  },
+  {
+    "id": 80,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 1: CASYUM",
+    "at": "2026-02-05T11:24:25.613Z"
+  },
+  {
+    "id": 81,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 8: HACKATHON (Event 1)",
+    "at": "2026-02-05T11:24:56.299Z"
+  },
+  {
+    "id": 82,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T11:25:00.761Z"
+  },
+  {
+    "id": 83,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 7 for sub-event 8",
+    "at": "2026-02-05T11:25:58.993Z"
+  },
+  {
+    "id": 84,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 8 for sub-event 8",
+    "at": "2026-02-05T11:38:59.597Z"
+  },
+  {
+    "id": 85,
+    "action": "Submit Payment",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Payment 4 txn 8788098978089789",
+    "at": "2026-02-05T11:39:06.242Z"
+  },
+  {
+    "id": 86,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 9 for sub-event 4",
+    "at": "2026-02-05T11:44:02.975Z"
+  },
+  {
+    "id": 87,
+    "action": "Submit Payment",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Payment 5 txn 40843934283232",
+    "at": "2026-02-05T11:44:02.983Z"
+  },
+  {
+    "id": 88,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 10 for sub-event 4",
+    "at": "2026-02-05T11:44:38.783Z"
+  },
+  {
+    "id": 89,
+    "action": "Submit Payment",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Payment 6 txn 2347382398748347231",
+    "at": "2026-02-05T11:44:38.794Z"
+  },
+  {
+    "id": 90,
+    "action": "Register Student",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Registration 11 for sub-event 4",
+    "at": "2026-02-05T11:48:54.402Z"
+  },
+  {
+    "id": 91,
+    "action": "Submit Payment",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Payment 7 txn 54345654324567654",
+    "at": "2026-02-05T11:48:54.411Z"
+  },
+  {
+    "id": 92,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T12:13:53.052Z"
+  },
+  {
+    "id": 93,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 1 deleted",
+    "at": "2026-02-05T12:14:04.116Z"
+  },
+  {
+    "id": 94,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T12:21:38.263Z"
+  },
+  {
+    "id": 95,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-05T12:26:11.959Z"
+  }
+]

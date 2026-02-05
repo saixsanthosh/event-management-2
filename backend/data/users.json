@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "username": "president",
+    "password": "$2b$10$c/oKuDU68eKlP9EM5/nLte7nn857c5gEWvh1H9FiKvRHENSf31cwW",
+    "role": "President"
+  },
+  {
+    "id": 2,
+    "username": "faculty",
+    "password": "$2b$10$SujWxhqQDTTbRjYD82dHBuyztohl2B6BnLecdFpFmThgvVNx1MQzu",
+    "role": "Faculty"
+  },
+  {
+    "id": 3,
+    "username": "hod",
+    "password": "$2b$10$ZXb/XuAK3a96cdChfl6mm.bFlF3e0fnUO0uZDn96XS7OydQigWLwq",
+    "role": "HOD"
+  },
+  {
+    "id": 4,
+    "username": "vp",
+    "password": "$2b$10$G.sCQHs2CPTj1ZxUqJTAMOr3PJfTtEgC/8hSNqaM5HK36J1.w2E62",
+    "role": "VP"
+  },
+  {
+    "id": 5,
+    "username": "dean",
+    "password": "$2b$10$wy0KE5N2bn8/tn3FAgROLeHEelwkDcsQJW81OdnMqdYOQ5EM1QnrK",
+    "role": "Dean"
+  },
+  {
+    "id": 6,
+    "username": "coordinator",
+    "password": "$2b$10$wu7Izv8TFymJyI4j4Rw3cu4T0DEwrOe.3MxoHnwydOsit9uNhmIri",
+    "role": "Coordinator"
+  },
+  {
+    "id": 7,
+    "username": "volunteer",
+    "password": "$2b$10$Z0NPDXIcEJxbI47DWulXnuihVPFiixLgGg.MbM.Wh1Tsp982wfoou",
+    "role": "Volunteer"
+  }
+]

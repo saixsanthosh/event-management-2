@@ -1,0 +1,1045 @@
+const express = require("express");
+const path = require("path");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const multer = require("multer");
+const store = require("./store");
+
+const app = express();
+const PORT = 3000;
+const SECRET = "event_secret_key";
+const APPROVAL_SEQUENCE = ["President", "Faculty", "HOD", "Dean", "VP"];
+
+const fs = require("fs");
+const UPLOAD_DIR = path.join(__dirname, "uploads", "posters");
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const UPI_DIR = path.join(__dirname, "uploads", "upi");
+if (!fs.existsSync(UPI_DIR)) fs.mkdirSync(UPI_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+    filename: (req, file, cb) => {
+      const ext = (file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/i) || [null, "jpg"])[1];
+      cb(null, `event-${req.params.id}-${Date.now()}.${ext}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /image\/(jpeg|jpg|png|gif|webp)/.test(file.mimetype);
+    if (allowed) cb(null, true);
+    else cb(new Error("Only images (jpeg, png, gif, webp) allowed"));
+  }
+});
+
+const uploadUPI = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPI_DIR),
+    filename: (req, file, cb) => {
+      const ext = (file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/i) || [null, "png"])[1];
+      cb(null, `upi-${Date.now()}.${ext}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /image\/(jpeg|jpg|png|gif|webp)/.test(file.mimetype);
+    if (allowed) cb(null, true);
+    else cb(new Error("Only images (jpeg, png, gif, webp) allowed"));
+  }
+});
+
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
+
+/* =========================
+   AUTH MIDDLEWARE
+========================= */
+function verifyToken(req, res, next) {
+  const header = req.headers["authorization"];
+  if (!header) return res.status(403).json({ success: false, message: "No token" });
+
+  const token = header.split(" ")[1];
+  jwt.verify(token, SECRET, (err, decoded) => {
+    if (err) return res.status(401).json({ success: false, message: "Invalid token" });
+    req.user = decoded;
+    next();
+  });
+}
+
+/* =========================
+   ROLE CHECK
+========================= */
+function allowRoles(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    next();
+  };
+}
+
+/* =========================
+   BASIC SECURITY HELPERS
+========================= */
+const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const rateBuckets = new Map();
+
+function isRateLimited(key, limit) {
+  const now = Date.now();
+  const bucket = rateBuckets.get(key) || { count: 0, start: now };
+  if (now - bucket.start > RATE_LIMIT_WINDOW_MS) {
+    bucket.count = 0;
+    bucket.start = now;
+  }
+  bucket.count += 1;
+  rateBuckets.set(key, bucket);
+  return bucket.count > limit;
+}
+
+function rateLimit(limit) {
+  return (req, res, next) => {
+    const key = `${req.ip || "unknown"}:${req.path}`;
+    if (isRateLimited(key, limit)) {
+      return res.status(429).json({ success: false, message: "Too many requests, try again later" });
+    }
+    next();
+  };
+}
+
+function sanitizeString(value, max = 200) {
+  return String(value || "").trim().slice(0, max);
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidPhone(value) {
+  return /^[0-9+\-\s]{7,15}$/.test(value);
+}
+
+function isValidDate(value) {
+  if (!value) return true;
+  return !Number.isNaN(Date.parse(value));
+}
+
+function toSafeInt(value, fallback = null) {
+  const num = Number.parseInt(value, 10);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function clampInt(value, min, max, fallback = 0) {
+  const num = Number.parseInt(value, 10);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(min, Math.min(max, num));
+}
+
+function logAudit({ action, actor, role, details }) {
+  const entry = {
+    id: store.nextId("audit"),
+    action,
+    actor: actor || "System",
+    role: role || "System",
+    details: details || "",
+    at: new Date().toISOString()
+  };
+  store.appendAuditLog(entry);
+}
+
+function ensureEventFields(event) {
+  let changed = false;
+  if (!event.approvalStatus) {
+    event.approvalStatus = "Draft";
+    changed = true;
+  }
+  if (!event.approvalStage) {
+    event.approvalStage = "President";
+    changed = true;
+  }
+  if (!Array.isArray(event.approvalHistory)) {
+    event.approvalHistory = [];
+    changed = true;
+  }
+  return changed;
+}
+
+function getNextApprovalStage(currentStage) {
+  const idx = APPROVAL_SEQUENCE.indexOf(currentStage);
+  if (idx === -1) return null;
+  if (idx === APPROVAL_SEQUENCE.length - 1) return "Approved";
+  return APPROVAL_SEQUENCE[idx + 1];
+}
+
+app.use(cors());
+
+// Serve frontend static files (so /manage-subevents.html works on :3000)
+const frontendPath = path.join(__dirname, "..", "frontend");
+app.use(express.static(frontendPath));
+app.use(bodyParser.json({ limit: "200kb" }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(express.static(path.join(__dirname, "..", "frontend")));
+
+/* =========================
+   LOGIN API
+========================= */
+app.post("/api/auth/login", rateLimit(20), async (req, res) => {
+  const username = sanitizeString(req.body.username, 50);
+  const password = String(req.body.password || "");
+  if (!username || !password) {
+    return res.json({ success: false, message: "Username and password required" });
+  }
+  const users = store.getUsers();
+  const user = users.find(u => u.username === username);
+  if (!user) {
+    return res.json({ success: false, message: "User not found" });
+  }
+
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) {
+    return res.json({ success: false, message: "Wrong password" });
+  }
+
+  const token = jwt.sign(
+    { id: user.id, role: user.role },
+    SECRET,
+    { expiresIn: "2h" }
+  );
+
+  res.json({
+    success: true,
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      role: user.role
+    }
+  });
+
+  logAudit({
+    action: "Login",
+    actor: user.username,
+    role: user.role,
+    details: "User logged in"
+  });
+});
+
+/* =========================
+   CREATE EVENT (President)
+========================= */
+app.post("/api/events", rateLimit(60), verifyToken, allowRoles("President"), (req, res) => {
+  const name = sanitizeString(req.body.name, 120);
+  const description = sanitizeString(req.body.description, 500);
+  const date = sanitizeString(req.body.date, 40);
+
+  if (!name) {
+    return res.json({ success: false, message: "Event name required" });
+  }
+  if (!isValidDate(date)) {
+    return res.json({ success: false, message: "Invalid date" });
+  }
+
+  const events = store.getEvents();
+  const newEvent = {
+    id: store.nextId("events"),
+    name,
+    description: description || "",
+    date: date || "",
+    status: "Upcoming",
+    posterPath: null,
+    approvalStatus: "Draft",
+    approvalStage: "President",
+    approvalHistory: []
+  };
+
+  events.push(newEvent);
+  store.saveEvents(events);
+  logAudit({
+    action: "Create Event",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Event ${newEvent.id}: ${newEvent.name}`
+  });
+  res.json({ success: true, event: newEvent });
+});
+
+/* =========================
+   GET ALL EVENTS
+========================= */
+app.get("/api/events", (req, res) => {
+  const events = store.getEvents();
+  let changed = false;
+  events.forEach(e => {
+    if (ensureEventFields(e)) changed = true;
+  });
+  if (changed) store.saveEvents(events);
+  res.json(events);
+});
+
+/* =========================
+   GET EVENT BY ID
+========================= */
+app.get("/api/events/:id", (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid event id" });
+  const event = store.getEvents().find(e => e.id === id);
+  if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+  if (ensureEventFields(event)) {
+    const events = store.getEvents();
+    const index = events.findIndex(e => e.id === id);
+    if (index !== -1) {
+      events[index] = event;
+      store.saveEvents(events);
+    }
+  }
+  res.json(event);
+});
+
+/* =========================
+   UPDATE EVENT (President)
+========================= */
+app.put("/api/events/:id", rateLimit(60), verifyToken, allowRoles("President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid event id" });
+  const name = req.body.name !== undefined ? sanitizeString(req.body.name, 120) : undefined;
+  const description = req.body.description !== undefined ? sanitizeString(req.body.description, 500) : undefined;
+  const date = req.body.date !== undefined ? sanitizeString(req.body.date, 40) : undefined;
+  const status = req.body.status;
+  const allowedStatus = ["Upcoming", "Ongoing", "Completed"];
+
+  const events = store.getEvents();
+  const event = events.find(e => e.id === id);
+  if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+  ensureEventFields(event);
+
+  if (name !== undefined) event.name = name;
+  if (description !== undefined) event.description = description;
+  if (date !== undefined) {
+    if (!isValidDate(date)) return res.json({ success: false, message: "Invalid date" });
+    event.date = date;
+  }
+  if (status !== undefined) {
+    if (!allowedStatus.includes(status)) {
+      return res.json({ success: false, message: "Invalid status" });
+    }
+    event.status = status;
+  }
+
+  store.saveEvents(events);
+  logAudit({
+    action: "Update Event",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Event ${event.id}: ${event.name}`
+  });
+  res.json({ success: true, event });
+});
+
+/* =========================
+   DELETE EVENT (President)
+========================= */
+app.delete("/api/events/:id", rateLimit(30), verifyToken, allowRoles("President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid event id" });
+
+  const events = store.getEvents();
+  const index = events.findIndex(e => e.id === id);
+  if (index === -1) return res.status(404).json({ success: false, message: "Event not found" });
+
+  events.splice(index, 1);
+  store.saveEvents(events);
+
+  // Cascade delete sub-events and related records
+  const subEvents = store.getSubEvents();
+  const subEventIds = subEvents.filter(se => se.eventId === id).map(se => se.id);
+  if (subEventIds.length) {
+    const remainingSubEvents = subEvents.filter(se => se.eventId !== id);
+    store.saveSubEvents(remainingSubEvents);
+
+    const registrations = store.getRegistrations();
+    const remainingRegs = registrations.filter(r => !subEventIds.includes(r.subEventId));
+    store.saveRegistrations(remainingRegs);
+
+    const applications = store.getApplications();
+    const remainingApps = applications.filter(a => !subEventIds.includes(a.subEventId));
+    store.saveApplications(remainingApps);
+
+    const removedRegIds = new Set(
+      registrations.filter(r => subEventIds.includes(r.subEventId)).map(r => r.id)
+    );
+    if (removedRegIds.size) {
+      const payments = store.getPayments();
+      const remainingPayments = payments.filter(p => !removedRegIds.has(Number(p.registrationId)));
+      store.savePayments(remainingPayments);
+    }
+  }
+
+  logAudit({
+    action: "Delete Event",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Event ${id} deleted`
+  });
+  res.json({ success: true, message: "Event deleted" });
+});
+
+/* =========================
+   SEND EVENT FOR APPROVAL (President)
+========================= */
+app.post("/api/events/:id/send-approval", rateLimit(20), verifyToken, allowRoles("President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid event id" });
+  const events = store.getEvents();
+  const event = events.find(e => e.id === id);
+  if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+
+  ensureEventFields(event);
+
+  if (event.approvalStatus === "Approved") {
+    return res.json({ success: false, message: "Event already approved" });
+  }
+
+  if (event.approvalStatus === "Pending") {
+    return res.json({ success: false, message: `Event is already with ${event.approvalStage}` });
+  }
+
+  // If it was sent back for revision, start a fresh approval cycle
+  if (event.approvalStatus === "Revision Requested") {
+    event.approvalHistory = [];
+  }
+
+  event.approvalStatus = "Pending";
+  event.approvalStage = "Faculty";
+  event.approvalHistory.push({
+    action: "Sent",
+    by: "President",
+    at: new Date().toISOString()
+  });
+
+  store.saveEvents(events);
+  logAudit({
+    action: "Send Event For Approval",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Event ${event.id}: ${event.name} -> Faculty`
+  });
+  res.json({ success: true, event });
+});
+
+/* =========================
+   GET EVENTS PENDING FOR ROLE
+========================= */
+app.get("/api/events/approvals", verifyToken, allowRoles("Dean", "VP", "HOD", "Faculty", "President"), (req, res) => {
+  const role = req.user.role;
+  const events = store.getEvents();
+  let changed = false;
+  events.forEach(e => {
+    if (ensureEventFields(e)) changed = true;
+  });
+  if (changed) store.saveEvents(events);
+
+  const pending = events.filter(e => e.approvalStatus === "Pending" && e.approvalStage === role);
+  res.json(pending);
+});
+
+/* =========================
+   APPROVE / REJECT EVENT
+========================= */
+app.post("/api/events/:id/decision", rateLimit(30), verifyToken, allowRoles("Dean", "VP", "HOD", "Faculty", "President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid event id" });
+  const action = sanitizeString(req.body.action, 20);
+  const note = sanitizeString(req.body.note, 200);
+  const role = req.user.role;
+
+  if (!action || !["Approved", "Rejected"].includes(action)) {
+    return res.json({ success: false, message: "Invalid action" });
+  }
+
+  const events = store.getEvents();
+  const event = events.find(e => e.id === id);
+  if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+
+  ensureEventFields(event);
+
+  if (event.approvalStage !== role || event.approvalStatus !== "Pending") {
+    return res.status(403).json({ success: false, message: "Not authorized for this event stage" });
+  }
+
+  if (action === "Approved") {
+    const nextStage = getNextApprovalStage(role);
+    if (nextStage === "Approved") {
+      event.approvalStatus = "Approved";
+      event.approvalStage = "Approved";
+    } else {
+      event.approvalStatus = "Pending";
+      event.approvalStage = nextStage;
+    }
+  } else {
+    event.approvalStatus = "Revision Requested";
+    event.approvalStage = "President";
+  }
+
+  event.approvalHistory.push({
+    action,
+    by: role,
+    note: note || "",
+    at: new Date().toISOString()
+  });
+
+  store.saveEvents(events);
+  logAudit({
+    action: "Event Decision",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Event ${event.id}: ${event.name} -> ${event.approvalStatus} @ ${event.approvalStage}`
+  });
+  res.json({ success: true, event });
+});
+
+/* =========================
+   UPLOAD EVENT POSTER (President)
+========================= */
+app.post("/api/events/:id/poster", rateLimit(30), verifyToken, allowRoles("President"), (req, res, next) => {
+  upload.single("poster")(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.message || "Upload failed" });
+    if (!req.file) return res.status(400).json({ success: false, message: "No file" });
+
+    const id = toSafeInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: "Invalid event id" });
+    const events = store.getEvents();
+    const event = events.find(e => e.id === id);
+    if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+
+    const posterPath = "/uploads/posters/" + path.basename(req.file.path);
+    event.posterPath = posterPath;
+    store.saveEvents(events);
+    logAudit({
+      action: "Upload Event Poster",
+      actor: req.user.id,
+      role: req.user.role,
+      details: `Event ${event.id}: ${event.name}`
+    });
+    res.json({ success: true, posterPath, event });
+  });
+});
+
+/* =========================
+   CREATE SUB-EVENT
+========================= */
+app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), (req, res) => {
+  const eventId = toSafeInt(req.body.eventId);
+  const name = sanitizeString(req.body.name, 120);
+  const coordinatorLimit = clampInt(req.body.coordinatorLimit, 0, 999, 0);
+  const volunteerLimit = clampInt(req.body.volunteerLimit, 0, 999, 0);
+  const date = sanitizeString(req.body.date, 40);
+  const time = sanitizeString(req.body.time, 20);
+  const venue = sanitizeString(req.body.venue, 120);
+
+  if (!eventId || !name) {
+    return res.json({ success: false, message: "Missing fields" });
+  }
+  if (!isValidDate(date)) {
+    return res.json({ success: false, message: "Invalid date" });
+  }
+  const eventExists = store.getEvents().some(e => e.id === eventId);
+  if (!eventExists) {
+    return res.status(404).json({ success: false, message: "Event not found" });
+  }
+
+  const subEvents = store.getSubEvents();
+  const newSubEvent = {
+    id: store.nextId("subevents"),
+    eventId,
+    name,
+    coordinatorLimit,
+    volunteerLimit,
+    date: date || "",
+    time: time || "",
+    venue: venue || ""
+  };
+
+  subEvents.push(newSubEvent);
+  store.saveSubEvents(subEvents);
+  logAudit({
+    action: "Create Sub-Event",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Sub-event ${newSubEvent.id}: ${newSubEvent.name} (Event ${newSubEvent.eventId})`
+  });
+  res.json({ success: true, subEvent: newSubEvent });
+});
+
+/* =========================
+   GET SUB-EVENTS BY EVENT
+========================= */
+app.get("/api/subevents/:eventId", (req, res) => {
+  const eventId = toSafeInt(req.params.eventId);
+  if (!eventId) return res.status(400).json({ success: false, message: "Invalid event id" });
+  const list = store.getSubEvents().filter(se => se.eventId === eventId);
+  res.json(list);
+});
+
+/* =========================
+   GET SUB-EVENT BY ID
+========================= */
+app.get("/api/subevents/detail/:id", (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
+  const subEvent = store.getSubEvents().find(se => se.id === id);
+  if (!subEvent) return res.status(404).json({ success: false, message: "Sub-event not found" });
+  res.json(subEvent);
+});
+
+/* =========================
+   UPDATE SUB-EVENT (President)
+========================= */
+app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
+  const name = req.body.name !== undefined ? sanitizeString(req.body.name, 120) : undefined;
+  const coordinatorLimit = req.body.coordinatorLimit !== undefined
+    ? clampInt(req.body.coordinatorLimit, 0, 999, 0)
+    : undefined;
+  const volunteerLimit = req.body.volunteerLimit !== undefined
+    ? clampInt(req.body.volunteerLimit, 0, 999, 0)
+    : undefined;
+  const date = req.body.date !== undefined ? sanitizeString(req.body.date, 40) : undefined;
+  const time = req.body.time !== undefined ? sanitizeString(req.body.time, 20) : undefined;
+  const venue = req.body.venue !== undefined ? sanitizeString(req.body.venue, 120) : undefined;
+
+  const subEvents = store.getSubEvents();
+  const subEvent = subEvents.find(se => se.id === id);
+  if (!subEvent) return res.status(404).json({ success: false, message: "Sub-event not found" });
+
+  if (name !== undefined) subEvent.name = name;
+  if (coordinatorLimit !== undefined) subEvent.coordinatorLimit = Number(coordinatorLimit);
+  if (volunteerLimit !== undefined) subEvent.volunteerLimit = Number(volunteerLimit);
+  if (date !== undefined) {
+    if (!isValidDate(date)) return res.json({ success: false, message: "Invalid date" });
+    subEvent.date = date;
+  }
+  if (time !== undefined) subEvent.time = time;
+  if (venue !== undefined) subEvent.venue = venue;
+
+  store.saveSubEvents(subEvents);
+  logAudit({
+    action: "Update Sub-Event",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Sub-event ${subEvent.id}: ${subEvent.name}`
+  });
+  res.json({ success: true, subEvent });
+});
+
+/* =========================
+   DELETE SUB-EVENT (President)
+========================= */
+app.delete("/api/subevents/:id", rateLimit(30), verifyToken, allowRoles("President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
+
+  const subEvents = store.getSubEvents();
+  const index = subEvents.findIndex(se => se.id === id);
+  if (index === -1) return res.status(404).json({ success: false, message: "Sub-event not found" });
+
+  subEvents.splice(index, 1);
+  store.saveSubEvents(subEvents);
+  logAudit({
+    action: "Delete Sub-Event",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Sub-event ${id} deleted`
+  });
+  res.json({ success: true, message: "Sub-event deleted" });
+});
+
+/* =========================
+   REGISTER STUDENT
+========================= */
+app.post("/api/register", rateLimit(40), (req, res) => {
+  const name = sanitizeString(req.body.name, 120);
+  const college = sanitizeString(req.body.college, 120);
+  const department = sanitizeString(req.body.department, 120);
+  const email = sanitizeString(req.body.email, 120);
+  const mobile = sanitizeString(req.body.mobile, 20);
+  const subEventId = toSafeInt(req.body.subEventId);
+  const transactionId = sanitizeString(req.body.transactionId, 80);
+
+  if (!name || !college || !email || !mobile || !subEventId) {
+    return res.json({ success: false, message: "All fields required" });
+  }
+  if (!isValidEmail(email)) {
+    return res.json({ success: false, message: "Invalid email" });
+  }
+  if (!isValidPhone(mobile)) {
+    return res.json({ success: false, message: "Invalid mobile number" });
+  }
+  const subEventExists = store.getSubEvents().some(se => se.id === subEventId);
+  if (!subEventExists) {
+    return res.status(404).json({ success: false, message: "Sub-event not found" });
+  }
+
+  const registrations = store.getRegistrations();
+  const exists = registrations.find(r => r.email === email && r.subEventId === parseInt(subEventId));
+  if (exists) {
+    return res.json({ success: false, message: "Already registered for this sub-event" });
+  }
+
+  const newReg = {
+    id: store.nextId("registrations"),
+    name,
+    college,
+    department: department || "",
+    email,
+    mobile,
+    subEventId,
+    transactionId: transactionId || "",
+    paymentStatus: "Pending",
+    attendance: false
+  };
+
+  registrations.push(newReg);
+  store.saveRegistrations(registrations);
+  logAudit({
+    action: "Register Student",
+    actor: "Public",
+    role: "Student",
+    details: `Registration ${newReg.id} for sub-event ${newReg.subEventId}`
+  });
+  res.json({ success: true, registration: newReg });
+});
+
+/* =========================
+   GET REGISTRATIONS BY SUB-EVENT
+========================= */
+app.get("/api/registrations/:subEventId", (req, res) => {
+  const subEventId = toSafeInt(req.params.subEventId);
+  if (!subEventId) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
+  const list = store.getRegistrations().filter(r => r.subEventId === subEventId);
+  res.json(list);
+});
+
+/* =========================
+   PAYMENT: GET CURRENT QR
+========================= */
+app.get("/api/payments/qr", (req, res) => {
+  const config = store.getPaymentConfig();
+  res.json({ success: true, qrPath: config.qrPath || null });
+});
+
+/* =========================
+   PAYMENT: UPLOAD QR (President)
+========================= */
+app.post("/api/payments/qr", rateLimit(20), verifyToken, allowRoles("President"), (req, res, next) => {
+  uploadUPI.single("qr")(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.message || "Upload failed" });
+    if (!req.file) return res.status(400).json({ success: false, message: "No file" });
+
+    const qrPath = "/uploads/upi/" + path.basename(req.file.path);
+    store.savePaymentConfig({ qrPath });
+    logAudit({
+      action: "Upload UPI QR",
+      actor: req.user.id,
+      role: req.user.role,
+      details: "UPI QR updated"
+    });
+    res.json({ success: true, qrPath });
+  });
+});
+
+/* =========================
+   PAYMENT: SUBMIT TRANSACTION
+========================= */
+app.post("/api/payments/submit", rateLimit(30), (req, res) => {
+  const transactionId = sanitizeString(req.body.transactionId, 80);
+  const registrationId = toSafeInt(req.body.registrationId);
+  if (!transactionId) {
+    return res.json({ success: false, message: "Transaction ID required" });
+  }
+
+  const payments = store.getPayments();
+  const exists = payments.find(p => p.transactionId === transactionId);
+  if (exists) {
+    return res.json({ success: false, message: "Transaction ID already submitted" });
+  }
+  const newPayment = {
+    id: store.nextId("payments"),
+    transactionId,
+    registrationId: registrationId || null,
+    status: "Pending",
+    createdAt: new Date().toISOString()
+  };
+  payments.push(newPayment);
+  store.savePayments(payments);
+  logAudit({
+    action: "Submit Payment",
+    actor: "Public",
+    role: "Student",
+    details: `Payment ${newPayment.id} txn ${newPayment.transactionId}`
+  });
+  res.json({ success: true, payment: newPayment });
+});
+
+/* =========================
+   PAYMENT: LIST (President / Faculty)
+========================= */
+app.get("/api/payments", verifyToken, allowRoles("President", "Faculty"), (req, res) => {
+  const payments = store.getPayments();
+  const sorted = payments.slice().sort((a, b) => {
+    const ta = Date.parse(a.createdAt || "") || 0;
+    const tb = Date.parse(b.createdAt || "") || 0;
+    return tb - ta;
+  });
+  res.json(sorted);
+});
+
+/* =========================
+   PAYMENT: UPDATE STATUS (President / Faculty)
+========================= */
+app.post("/api/payments/:id/status", rateLimit(40), verifyToken, allowRoles("President", "Faculty"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid payment id" });
+  const status = sanitizeString(req.body.status, 20);
+  if (!status || !["Verified", "Rejected"].includes(status)) {
+    return res.json({ success: false, message: "Invalid status" });
+  }
+
+  const payments = store.getPayments();
+  const payment = payments.find(p => p.id === id);
+  if (!payment) {
+    return res.json({ success: false, message: "Payment not found" });
+  }
+
+  payment.status = status;
+  payment.verifiedAt = new Date().toISOString();
+
+  const registrations = store.getRegistrations();
+  let updated = false;
+  if (payment.registrationId) {
+    const reg = registrations.find(r => r.id === Number(payment.registrationId));
+    if (reg) {
+      reg.paymentStatus = status === "Verified" ? "Paid" : "Rejected";
+      if (payment.transactionId) reg.transactionId = payment.transactionId;
+      updated = true;
+    }
+  } else if (payment.transactionId) {
+    registrations.forEach(r => {
+      if (r.transactionId === payment.transactionId) {
+        r.paymentStatus = status === "Verified" ? "Paid" : "Rejected";
+        updated = true;
+      }
+    });
+  }
+
+  store.savePayments(payments);
+  if (updated) store.saveRegistrations(registrations);
+  logAudit({
+    action: "Verify Payment",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Payment ${payment.id} -> ${status}`
+  });
+  res.json({ success: true, payment });
+});
+
+/* =========================
+   APPLY FOR ROLE (Coordinator / Volunteer)
+========================= */
+app.post("/api/apply-role", rateLimit(40), (req, res) => {
+  const name = sanitizeString(req.body.name, 120);
+  const email = sanitizeString(req.body.email, 120);
+  const role = sanitizeString(req.body.role, 20);
+  const subEventId = toSafeInt(req.body.subEventId);
+
+  if (!name || !email || !role || !subEventId) {
+    return res.json({ success: false, message: "All fields required" });
+  }
+  if (!["Coordinator", "Volunteer"].includes(role)) {
+    return res.json({ success: false, message: "Invalid role" });
+  }
+  if (!isValidEmail(email)) {
+    return res.json({ success: false, message: "Invalid email" });
+  }
+  const subEventExists = store.getSubEvents().some(se => se.id === subEventId);
+  if (!subEventExists) {
+    return res.status(404).json({ success: false, message: "Sub-event not found" });
+  }
+
+  const roleApplications = store.getApplications();
+  const exists = roleApplications.find(a =>
+    a.email === email && a.role === role && a.subEventId === subEventId
+  );
+
+  if (exists) {
+    return res.json({ success: false, message: "Already applied" });
+  }
+
+  const newApp = {
+    id: store.nextId("applications"),
+    name,
+    email,
+    role,
+    subEventId,
+    status: "Pending"
+  };
+
+  roleApplications.push(newApp);
+  store.saveApplications(roleApplications);
+  logAudit({
+    action: "Apply Role",
+    actor: "Public",
+    role: "Student",
+    details: `${newApp.role} application ${newApp.id} for sub-event ${newApp.subEventId}`
+  });
+  res.json({ success: true, application: newApp });
+});
+
+/* =========================
+   GET ROLE APPLICATIONS BY SUB-EVENT
+========================= */
+app.get("/api/applications/:subEventId", (req, res) => {
+  const subEventId = toSafeInt(req.params.subEventId);
+  if (!subEventId) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
+  const list = store.getApplications().filter(a => a.subEventId === subEventId);
+  res.json(list);
+});
+
+/* =========================
+   APPROVE / REJECT ROLE
+========================= */
+app.post("/api/applications/:id/status", rateLimit(40), verifyToken, allowRoles("Faculty", "President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid application id" });
+  const status = sanitizeString(req.body.status, 20);
+  if (!["Approved", "Rejected", "Pending"].includes(status)) {
+    return res.json({ success: false, message: "Invalid status" });
+  }
+
+  const roleApplications = store.getApplications();
+  const appItem = roleApplications.find(a => a.id === id);
+  if (!appItem) {
+    return res.json({ success: false, message: "Application not found" });
+  }
+
+  appItem.status = status;
+  store.saveApplications(roleApplications);
+  logAudit({
+    action: "Update Role Application",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Application ${appItem.id} -> ${status}`
+  });
+  res.json({ success: true, application: appItem });
+});
+
+/* =========================
+   AUDIT LOG (President / Faculty)
+========================= */
+app.get("/api/audit", verifyToken, allowRoles("President", "Faculty"), (req, res) => {
+  const limit = Math.max(1, Math.min(200, parseInt(req.query.limit || "50", 10)));
+  const q = String(req.query.q || "").trim().toLowerCase();
+  const role = String(req.query.role || "").trim().toLowerCase();
+  const action = String(req.query.action || "").trim().toLowerCase();
+  const actor = String(req.query.actor || "").trim().toLowerCase();
+  const fromRaw = String(req.query.from || "").trim();
+  const toRaw = String(req.query.to || "").trim();
+  const fromTs = fromRaw ? Date.parse(fromRaw) : null;
+  const toTs = toRaw ? Date.parse(toRaw) : null;
+
+  const logs = store.getAuditLog();
+  const filtered = logs.filter((entry) => {
+    const entryRole = String(entry.role || "").toLowerCase();
+    const entryAction = String(entry.action || "").toLowerCase();
+    const entryActor = String(entry.actor || "").toLowerCase();
+    const entryDetails = String(entry.details || "").toLowerCase();
+    const entryAt = Date.parse(entry.at || "") || 0;
+
+    if (role && entryRole !== role) return false;
+    if (action && !entryAction.includes(action)) return false;
+    if (actor && entryActor !== actor) return false;
+    if (fromTs && entryAt < fromTs) return false;
+    if (toTs && entryAt > toTs) return false;
+
+    if (q) {
+      const haystack = `${entryAction} ${entryDetails} ${entryRole} ${entryActor}`;
+      if (!haystack.includes(q)) return false;
+    }
+
+    return true;
+  });
+
+  const sorted = filtered.slice().sort((a, b) => {
+    const ta = Date.parse(a.at || "") || 0;
+    const tb = Date.parse(b.at || "") || 0;
+    return tb - ta;
+  });
+  res.json(sorted.slice(0, limit));
+});
+
+/* =========================
+   ANALYTICS (President / Faculty)
+========================= */
+app.get("/api/analytics", verifyToken, allowRoles("President", "Faculty"), (req, res) => {
+  const events = store.getEvents();
+  const subEvents = store.getSubEvents();
+  const registrations = store.getRegistrations();
+  const applications = store.getApplications();
+  const payments = store.getPayments();
+
+  const regBySub = {};
+  registrations.forEach(r => {
+    const key = String(r.subEventId);
+    regBySub[key] = (regBySub[key] || 0) + 1;
+  });
+
+  const topSubEvents = subEvents
+    .map(se => ({
+      id: se.id,
+      name: se.name,
+      eventId: se.eventId,
+      registrations: regBySub[String(se.id)] || 0
+    }))
+    .sort((a, b) => b.registrations - a.registrations)
+    .slice(0, 5);
+
+  const appStatusCounts = applications.reduce((acc, a) => {
+    const key = a.status || "Pending";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const paymentStatusCounts = payments.reduce((acc, p) => {
+    const key = p.status || "Pending";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  res.json({
+    events: events.length,
+    subEvents: subEvents.length,
+    registrations: registrations.length,
+    applications: applications.length,
+    topSubEvents,
+    appStatusCounts,
+    paymentStatusCounts
+  });
+});
+
+/* =========================
+   TEST API
+========================= */
+app.get("/", (req, res) => {
+  res.send("Backend running with login system");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

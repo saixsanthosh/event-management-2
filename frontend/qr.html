@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Successful</title>
+
+    <!-- MAIN CSS -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- GOOGLE FONT -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FONT AWESOME -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+<!-- THEME TOGGLE -->
+<div class="theme-toggle" id="themeToggle">
+    <i class="fas fa-moon"></i>
+</div>
+
+<!-- BACKGROUND -->
+<div class="bg-animation">
+    <div class="floating-shapes">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+    </div>
+</div>
+
+<!-- CONTAINER -->
+<div class="login-container">
+    <div class="login-box">
+
+        <!-- LEFT PANEL -->
+        <div class="login-left">
+            <div class="brand-content">
+                <div class="logo-icon">
+                    <i class="fas fa-qrcode"></i>
+                </div>
+                <h1>Registration Complete</h1>
+                <p>Show this QR at the event entry</p>
+
+                <div class="features-list">
+                    <div class="feature-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Registration Confirmed</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-user-check"></i>
+                        <span>Verified Entry</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-calendar-day"></i>
+                        <span>Event Access</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="login-right">
+            <div class="login-form-container" style="text-align:center">
+
+                <div class="form-header">
+                    <h2>Your Event QR Code</h2>
+                    <p>Keep this safe</p>
+                </div>
+
+                <!-- QR IMAGE -->
+                <div style="margin:20px 0">
+                    <img src="assets/upi.png"
+                         alt="Event QR Code"
+                         style="width:220px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.15)">
+                </div>
+
+                <!-- DETAILS -->
+                <div style="margin-bottom:25px">
+                    <p><strong>Event:</strong> COLLEGE FEST</p>
+                    <p><strong>Sub-Event:</strong> Hackathon</p>
+                    <p><strong>Status:</strong>
+                        <span style="color:#38a169;font-weight:600">Confirmed</span>
+                    </p>
+                </div>
+
+                <!-- ACTIONS -->
+                <div style="display:flex;gap:15px;justify-content:center">
+                    <button class="login-btn" onclick="downloadQR()">
+                        <i class="fas fa-download"></i>
+                        <span>Download QR</span>
+                    </button>
+
+                    <a href="index.html" class="login-btn" style="text-decoration:none">
+                        <i class="fas fa-home"></i>
+                        <span>Back to Home</span>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- JS -->
+<script src="js/main.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const msg = localStorage.getItem("paymentSuccessMessage");
+    if (msg) {
+        alert(msg);
+        localStorage.removeItem("paymentSuccessMessage");
+    }
+});
+
+function downloadQR() {
+    const link = document.createElement("a");
+    link.href = "assets/upi.png";
+    link.download = "upi-qr.png";
+    link.click();
+}
+</script>
+
+</body>
+</html>

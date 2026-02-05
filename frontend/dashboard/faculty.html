@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Dashboard</title>
+
+    <!-- MAIN CSS -->
+    <link rel="stylesheet" href="../css/style.css">
+
+    <!-- GOOGLE FONT -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FONT AWESOME -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <script>
+const token = localStorage.getItem("token");
+const user = JSON.parse(localStorage.getItem("user"));
+
+if (!token || !user) {
+  window.location.href = "../index.html";
+}
+
+if (user.role !== "Faculty") {
+  alert("Access denied");
+  window.location.href = "../index.html";
+}
+</script>
+
+<!-- THEME TOGGLE -->
+<div class="theme-toggle" id="themeToggle">
+    <i class="fas fa-moon"></i>
+</div>
+
+<!-- BACKGROUND -->
+<div class="bg-animation">
+    <div class="floating-shapes">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+    </div>
+</div>
+
+<!-- CONTAINER -->
+<div class="login-container">
+    <div class="login-box">
+
+        <!-- LEFT PANEL -->
+        <div class="login-left" style="flex:0 0 25%;max-width:25%">
+            <div class="brand-content">
+                <div class="logo-icon">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                </div>
+                <h1>Faculty Panel</h1>
+                <p>Supervision & Approval</p>
+
+                <div class="features-list">
+                    <div class="feature-item"><i class="fas fa-eye"></i><span>View Events</span></div>
+                    <div class="feature-item"><i class="fas fa-bell"></i><span>Approval Requests</span></div>
+                    <div class="feature-item"><i class="fas fa-check-circle"></i><span>Accept / Decline</span></div>
+                    <div class="feature-item"><i class="fas fa-stream"></i><span>Status Timeline</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="login-right" style="flex:0 0 75%;max-width:75%">
+            <div class="login-form-container" style="max-width:100%">
+
+                <!-- NOTIFICATIONS -->
+                <div class="form-header">
+                    <h2>Approval Requests</h2>
+                    <p>Events sent by President</p>
+                </div>
+
+                <div id="eventApprovalRequests"></div>
+
+                <div class="form-header" style="margin-top:20px">
+                    <h2>Role Applications</h2>
+                    <p>Coordinator / Volunteer requests</p>
+                </div>
+
+                <div id="roleApprovalRequests" style="max-height:320px;overflow:auto;padding-right:6px"></div>
+
+                <div class="form-header" style="margin-top:20px">
+                    <h2>Payment Requests</h2>
+                    <p>Pending transaction verifications</p>
+                </div>
+
+                <div id="paymentRequests" style="max-height:320px;overflow:auto;padding-right:6px"></div>
+
+
+
+                <!-- EVENT VIEW -->
+                <div class="form-header">
+                    <h2>All Events (Read Only)</h2>
+                </div>
+
+                <div id="eventsList" style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px"></div>
+
+                <!-- STATUS TIMELINE -->
+                <div class="form-header" style="margin-top:30px">
+                    <h2>Status Timeline</h2>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px">
+                    <div class="input-group"><input id="wfPresident" disabled value="President ⏳" style="padding:16px 10px;text-align:center;font-size:0.95rem;font-weight:600;min-height:54px;"></div>
+                    <div class="input-group"><input id="wfFaculty" disabled value="Faculty ⏳" style="padding:16px 10px;text-align:center;font-size:0.95rem;font-weight:600;min-height:54px;"></div>
+                    <div class="input-group"><input id="wfHod" disabled value="HOD ⏳" style="padding:16px 10px;text-align:center;font-size:0.95rem;font-weight:600;min-height:54px;"></div>
+                    <div class="input-group"><input id="wfDean" disabled value="Dean ⏳" style="padding:16px 10px;text-align:center;font-size:0.95rem;font-weight:600;min-height:54px;"></div>
+                    <div class="input-group"><input id="wfVp" disabled value="VP ⏳" style="padding:16px 10px;text-align:center;font-size:0.95rem;font-weight:600;min-height:54px;"></div>
+                </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- JS -->
+<script src="../js/main.js"></script>
+
+<script>
+  // Allow page scroll when content exceeds viewport
+  document.addEventListener("DOMContentLoaded", () => {
+      document.body.style.overflow = "auto";
+  });
+
+  const eventApprovalRequestsEl = document.getElementById("eventApprovalRequests");
+  const roleApprovalRequestsEl = document.getElementById("roleApprovalRequests");
+  const paymentRequestsEl = document.getElementById("paymentRequests");
+  // Audit log removed on faculty page
+  const eventsListEl = document.getElementById("eventsList");
+  const wfInputs = {
+      President: document.getElementById("wfPresident"),
+      Faculty: document.getElementById("wfFaculty"),
+      HOD: document.getElementById("wfHod"),
+      Dean: document.getElementById("wfDean"),
+      VP: document.getElementById("wfVp")
+  };
+
+  const APPROVAL_ORDER = ["President", "Faculty", "HOD", "Dean", "VP"];
+  const WORKFLOW_LABELS = {
+      President: "President",
+      Faculty: "Faculty",
+      HOD: "HOD",
+      Dean: "Dean",
+      VP: "VP"
+  };
+
+  function labelFor(role) {
+      return WORKFLOW_LABELS[role] || role;
+  }
+
+  function setWorkflowDefaults() {
+      APPROVAL_ORDER.forEach(role => {
+          if (wfInputs[role]) wfInputs[role].value = `${labelFor(role)} ⏳`;
+      });
+  }
+
+  function updateWorkflowUI(event) {
+      if (!event) {
+          setWorkflowDefaults();
+          return;
+      }
+
+      const status = event.approvalStatus || "Draft";
+      const stage = event.approvalStage || "President";
+      const history = Array.isArray(event.approvalHistory) ? event.approvalHistory : [];
+      const approvedRoles = new Set(
+          history.filter(h => h && h.action === "Approved" && h.by).map(h => h.by)
+      );
+
+      APPROVAL_ORDER.forEach(role => {
+          if (!wfInputs[role]) return;
+
+          if (status === "Revision Requested" && role === "President") {
+              wfInputs[role].value = `${labelFor(role)} ✎`;
+              return;
+          }
+
+          if (role === "President" && status !== "Draft") {
+              wfInputs[role].value = `${labelFor(role)} ✔`;
+              return;
+          }
+
+          if (approvedRoles.has(role)) {
+              wfInputs[role].value = `${labelFor(role)} ✔`;
+              return;
+          }
+
+          if (status === "Pending" && stage === role) {
+              wfInputs[role].value = `${labelFor(role)} ⏳`;
+              return;
+          }
+
+          wfInputs[role].value = `${labelFor(role)} ⏳`;
+      });
+  }
+
+  function pickWorkflowEvent(events, approvals) {
+      const storedId = localStorage.getItem("workflowEventId");
+      if (storedId) {
+          const match = events.find(e => String(e.id) === String(storedId));
+          if (match) return match;
+      }
+
+      if (Array.isArray(approvals) && approvals.length > 0) {
+          return approvals[0];
+      }
+
+      let latest = null;
+      let latestTime = 0;
+      events.forEach(e => {
+          const history = Array.isArray(e.approvalHistory) ? e.approvalHistory : [];
+          const last = history[history.length - 1];
+          const time = last && last.at ? Date.parse(last.at) : 0;
+          if (time > latestTime) {
+              latestTime = time;
+              latest = e;
+          }
+      });
+      return latest || events[0];
+  }
+
+  function getToken() {
+      return localStorage.getItem("token");
+  }
+
+  function getUserRole() {
+      try {
+          const user = JSON.parse(localStorage.getItem("user"));
+          return user && user.role ? user.role : null;
+      } catch (e) {
+          return null;
+      }
+  }
+
+  async function fetchJSON(url, options = {}) {
+      const res = await fetch(url, options);
+      return res.json();
+  }
+
+  function renderEmptyEventApproval() {
+      eventApprovalRequestsEl.innerHTML = `
+        <div style="border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:20px">
+          <p style="color:var(--text-muted);margin:0">No pending event approvals</p>
+        </div>
+      `;
+  }
+
+  function renderEmptyRoleApproval() {
+      roleApprovalRequestsEl.innerHTML = `
+        <div style="border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:30px">
+          <p style="color:var(--text-muted);margin:0">No pending requests</p>
+        </div>
+      `;
+  }
+
+  function renderEmptyPayments() {
+      if (!paymentRequestsEl) return;
+      paymentRequestsEl.innerHTML = `
+        <div style="border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:30px">
+          <p style="color:var(--text-muted);margin:0">No pending payments</p>
+        </div>
+      `;
+  }
+
+
+
+  function renderEmptyEvents() {
+      eventsListEl.innerHTML = `
+        <div class="input-group">
+          <input disabled value="No events found">
+        </div>
+      `;
+  }
+
+  async function loadEventsAndApprovals() {
+      try {
+          const events = await fetchJSON(`${API_BASE}/api/events`);
+          if (!Array.isArray(events) || events.length === 0) {
+              renderEmptyEvents();
+              renderEmptyEventApproval();
+              renderEmptyRoleApproval();
+              return;
+          }
+
+          const eventMap = new Map(events.map(e => [e.id, e]));
+
+          // Render events list (read-only)
+          eventsListEl.innerHTML = "";
+          events.forEach(event => {
+              const item = document.createElement("div");
+              item.className = "input-group";
+              const status = event.status ? event.status : "Upcoming";
+              item.innerHTML = `<input disabled value="${event.name} – ${status}">`;
+              eventsListEl.appendChild(item);
+          });
+
+          // Event approvals (approval chain)
+          let eventApprovals = [];
+          const token = getToken();
+          if (token) {
+              const fetched = await fetchJSON(`${API_BASE}/api/events/approvals`, {
+                  headers: { "Authorization": `Bearer ${token}` }
+              });
+              if (Array.isArray(fetched)) {
+                  eventApprovals = fetched;
+              }
+          }
+
+          // Fallback: derive pending approvals from public events list
+          if (eventApprovals.length === 0) {
+              const role = getUserRole();
+              eventApprovals = events.filter(e => e.approvalStatus === "Pending" && e.approvalStage === role);
+          }
+
+          if (!Array.isArray(eventApprovals) || eventApprovals.length === 0) {
+              renderEmptyEventApproval();
+          } else {
+              eventApprovalRequestsEl.innerHTML = "";
+              eventApprovals.forEach(event => {
+                  const card = document.createElement("div");
+                  card.style.border = "1px solid var(--border-color)";
+                  card.style.borderRadius = "16px";
+                  card.style.padding = "20px";
+                  card.style.marginBottom = "20px";
+
+                  card.innerHTML = `
+                    <h3 style="margin-bottom:8px">${event.name}</h3>
+                    <p style="color:var(--text-muted);margin-bottom:15px">
+                      Status: ${event.approvalStatus || "Pending"}
+                    </p>
+                    <div style="display:flex;gap:15px">
+                      <button class="login-btn" style="background:#38a169" data-action="Approved" data-event-id="${event.id}">
+                        <i class="fas fa-check"></i>
+                        <span>Accept</span>
+                      </button>
+                      <button class="login-btn" style="background:#e53e3e" data-action="Rejected" data-event-id="${event.id}">
+                        <i class="fas fa-times"></i>
+                        <span>Decline</span>
+                      </button>
+                    </div>
+                  `;
+                  eventApprovalRequestsEl.appendChild(card);
+              });
+
+              eventApprovalRequestsEl.querySelectorAll("button[data-event-id]").forEach(btn => {
+                  btn.addEventListener("click", async () => {
+                      const id = btn.getAttribute("data-event-id");
+                      const action = btn.getAttribute("data-action");
+                      localStorage.setItem("workflowEventId", id);
+                      await updateEventApproval(id, action);
+                  });
+              });
+          }
+
+          updateWorkflowUI(pickWorkflowEvent(events, eventApprovals));
+
+          // Role applications
+          const subEventLists = await Promise.all(
+              events.map(e => fetchJSON(`${API_BASE}/api/subevents/${e.id}`))
+          );
+          const subEvents = subEventLists.flat().filter(Boolean);
+          const subEventMap = new Map(subEvents.map(se => [se.id, se]));
+
+          if (subEvents.length === 0) {
+              renderEmptyRoleApproval();
+              return;
+          }
+
+          const appsLists = await Promise.all(
+              subEvents.map(se => fetchJSON(`${API_BASE}/api/applications/${se.id}`))
+          );
+          const applications = appsLists.flat().filter(Boolean);
+
+          const pendingApps = applications.filter(a => a.status === "Pending");
+          if (pendingApps.length === 0) {
+              renderEmptyRoleApproval();
+              return;
+          }
+
+          roleApprovalRequestsEl.innerHTML = "";
+          pendingApps.forEach(app => {
+              const sub = subEventMap.get(app.subEventId);
+              const event = sub ? eventMap.get(sub.eventId) : null;
+              const eventName = event ? event.name : "Event";
+              const subName = sub ? sub.name : "Sub-event";
+              const card = document.createElement("div");
+              card.style.border = "1px solid var(--border-color)";
+              card.style.borderRadius = "16px";
+              card.style.padding = "20px";
+              card.style.marginBottom = "20px";
+
+              card.innerHTML = `
+                <h3 style="margin-bottom:8px">${eventName} – ${subName}</h3>
+                <p style="color:var(--text-muted);margin-bottom:15px">
+                  ${app.name} • ${app.role} • ${app.email}
+                </p>
+                <div style="display:flex;gap:15px">
+                  <button class="login-btn" style="background:#38a169" data-role-action="Approved" data-role-id="${app.id}">
+                    <i class="fas fa-check"></i>
+                    <span>Accept</span>
+                  </button>
+                  <button class="login-btn" style="background:#e53e3e" data-role-action="Rejected" data-role-id="${app.id}">
+                    <i class="fas fa-times"></i>
+                    <span>Decline</span>
+                  </button>
+                </div>
+              `;
+              roleApprovalRequestsEl.appendChild(card);
+          });
+
+          roleApprovalRequestsEl.querySelectorAll("button[data-role-id]").forEach(btn => {
+              btn.addEventListener("click", async () => {
+                  const id = btn.getAttribute("data-role-id");
+                  const status = btn.getAttribute("data-role-action");
+                  await updateApplicationStatus(id, status);
+              });
+          });
+      } catch (err) {
+          console.error(err);
+          renderEmptyEvents();
+          renderEmptyEventApproval();
+          renderEmptyRoleApproval();
+      }
+  }
+
+  async function loadPayments() {
+      if (!paymentRequestsEl) return;
+      const token = getToken();
+      if (!token) return;
+
+      try {
+          const res = await fetch(`${API_BASE}/api/payments`, {
+              headers: { "Authorization": `Bearer ${token}` }
+          });
+          const payments = await res.json();
+          const pending = Array.isArray(payments) ? payments.filter(p => p.status === "Pending") : [];
+
+          if (pending.length === 0) {
+              renderEmptyPayments();
+              return;
+          }
+
+          paymentRequestsEl.innerHTML = "";
+          pending.forEach(p => {
+              const card = document.createElement("div");
+              card.style.border = "1px solid var(--border-color)";
+              card.style.borderRadius = "16px";
+              card.style.padding = "20px";
+              card.style.marginBottom = "20px";
+              card.innerHTML = `
+                <h3 style="margin-bottom:8px">Txn: ${p.transactionId}</h3>
+                <p style="color:var(--text-muted);margin-bottom:15px">
+                  Reg ID: ${p.registrationId || "N/A"} • Status: ${p.status}
+                </p>
+                <div style="display:flex;gap:15px">
+                  <button class="login-btn" style="background:#38a169" data-pay-action="Verified" data-pay-id="${p.id}">
+                    <i class="fas fa-check"></i>
+                    <span>Verify</span>
+                  </button>
+                  <button class="login-btn" style="background:#e53e3e" data-pay-action="Rejected" data-pay-id="${p.id}">
+                    <i class="fas fa-times"></i>
+                    <span>Reject</span>
+                  </button>
+                </div>
+              `;
+              paymentRequestsEl.appendChild(card);
+          });
+
+          paymentRequestsEl.querySelectorAll("button[data-pay-id]").forEach(btn => {
+              btn.addEventListener("click", async () => {
+                  const id = btn.getAttribute("data-pay-id");
+                  const status = btn.getAttribute("data-pay-action");
+                  await updatePaymentStatus(id, status);
+              });
+          });
+      } catch (err) {
+          console.error(err);
+          renderEmptyPayments();
+      }
+  }
+
+
+
+  async function updatePaymentStatus(id, status) {
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+      const res = await fetch(`${API_BASE}/api/payments/${id}/status`, {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (data.success) {
+          loadPayments();
+      } else {
+          alert(data.message || "Update failed");
+      }
+  }
+
+  async function updateEventApproval(id, action) {
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+      const res = await fetch(`${API_BASE}/api/events/${id}/decision`, {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ action })
+      });
+      const data = await res.json();
+      if (data.success) {
+          loadEventsAndApprovals();
+      } else {
+          alert(data.message || "Update failed");
+      }
+  }
+
+  async function updateApplicationStatus(id, status) {
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+      const res = await fetch(`${API_BASE}/api/applications/${id}/status`, {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (data.success) {
+          loadEventsAndApprovals();
+      } else {
+          alert(data.message || "Update failed");
+      }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+      loadEventsAndApprovals();
+      loadPayments();
+  });
+</script>
+
+</body>
+</html>

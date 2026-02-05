@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Events</title>
+
+  <link rel="stylesheet" href="css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+<script>
+  const token = localStorage.getItem("token");
+  const user = JSON.parse(localStorage.getItem("user"));
+  if (!token || !user) {
+    window.location.href = "index.html";
+  }
+  if (user.role !== "President") {
+    alert("Access denied");
+    window.location.href = "index.html";
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    document.body.style.overflow = "auto";
+  });
+</script>
+
+<div class="theme-toggle" id="themeToggle">
+  <i class="fas fa-moon"></i>
+</div>
+
+<div class="bg-animation">
+  <div class="floating-shapes">
+    <span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span>
+  </div>
+</div>
+
+<div class="login-container">
+  <div class="login-box">
+
+    <div class="login-left" style="flex:0 0 25%;max-width:25%">
+      <div class="brand-content">
+        <div class="logo-icon">
+          <i class="fas fa-layer-group"></i>
+        </div>
+        <h1>Manage Events</h1>
+        <p>View all events</p>
+
+        <div class="features-list">
+          <div class="feature-item"><i class="fas fa-list"></i><span>All Events</span></div>
+          <div class="feature-item"><i class="fas fa-layer-group"></i><span>Sub-events</span></div>
+          <div class="feature-item"><i class="fas fa-eye"></i><span>View Only</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="login-right" style="flex:0 0 75%;max-width:75%">
+      <div class="login-form-container" style="max-width:100%">
+
+        <div class="form-header">
+          <h2>Manage Events</h2>
+          <p>Existing events with their sub-events</p>
+        </div>
+
+        <div style="display:flex;gap:15px;margin-bottom:20px">
+          <a href="dashboard/president.html" class="login-btn" style="text-decoration:none">
+            <i class="fas fa-arrow-left"></i>
+            <span>Back to Dashboard</span>
+          </a>
+        </div>
+
+        <div id="eventsList" style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-bottom:25px">
+          <div class="input-group">
+            <input disabled value="Loading events...">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script>
+  const eventsListEl = document.getElementById("eventsList");
+  const API_ORIGIN = window.location.origin;
+
+  async function fetchJSON(url, options) {
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    return res.json();
+  }
+
+  function renderEmpty(message) {
+    eventsListEl.innerHTML = `
+      <div class="input-group">
+        <input disabled value="${message}">
+      </div>
+    `;
+  }
+
+  function buildSubEventCard(se) {
+    const card = document.createElement("div");
+    card.style.border = "1px solid var(--border-color)";
+    card.style.borderRadius = "12px";
+    card.style.padding = "12px";
+    card.style.background = "var(--bg-secondary)";
+    card.style.color = "var(--text-primary)";
+    card.innerHTML = `
+      <div style="font-weight:600;margin-bottom:6px;color:var(--text-primary)">${se.name}</div>
+      <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:8px">${se.time || ""} • ${se.venue || ""}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;color:var(--text-muted);font-size:0.8rem">
+        <span>Coords: ${se.coordinatorLimit || 0}</span>
+        <span>Volunteers: ${se.volunteerLimit || 0}</span>
+        <span>Fee: ${se.fee || 0}</span>
+      </div>
+    `;
+    return card;
+  }
+
+  async function toggleSubEvents(eventId, container, button) {
+    if (container.dataset.loaded === "true") {
+      const isHidden = container.style.display === "none";
+      container.style.display = isHidden ? "grid" : "none";
+      button.querySelector("span").textContent = isHidden ? "Hide Sub-events" : "View Sub-events";
+      return;
+    }
+
+    container.innerHTML = "";
+    try {
+      const list = await fetchJSON(`${API_ORIGIN}/api/subevents/${eventId}`);
+      if (!Array.isArray(list) || list.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "input-group";
+        empty.innerHTML = `<input disabled value="No sub-events for this event">`;
+        container.appendChild(empty);
+      } else {
+        list.forEach(se => container.appendChild(buildSubEventCard(se)));
+      }
+      container.dataset.loaded = "true";
+      container.style.display = "grid";
+      button.querySelector("span").textContent = "Hide Sub-events";
+    } catch (err) {
+      console.error(err);
+      const errCard = document.createElement("div");
+      errCard.className = "input-group";
+      errCard.innerHTML = `<input disabled value="Unable to load sub-events">`;
+      container.appendChild(errCard);
+      container.dataset.loaded = "true";
+      container.style.display = "grid";
+    }
+  }
+
+  async function loadEvents() {
+    try {
+      if (eventsListEl) {
+        eventsListEl.innerHTML = `
+          <div class="input-group">
+            <input disabled value="Fetching events...">
+          </div>
+        `;
+      }
+      const events = await fetchJSON(`${API_ORIGIN}/api/events`);
+      if (!Array.isArray(events) || events.length === 0) {
+        renderEmpty("No events created yet");
+        return;
+      }
+
+      events.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+      eventsListEl.innerHTML = "";
+      events.forEach(evt => {
+        const card = document.createElement("div");
+        card.style.border = "2px solid var(--border-color)";
+        card.style.borderRadius = "16px";
+        card.style.padding = "16px";
+        card.style.background = "var(--input-bg)";
+        card.style.boxShadow = "0 8px 20px rgba(0,0,0,0.06)";
+
+        const subContainerId = `sub-${evt.id}`;
+        card.style.color = "var(--text-primary)";
+        card.innerHTML = `
+          <div style="font-weight:600;margin-bottom:6px;color:var(--text-primary)">${evt.name}</div>
+          <div style="color:var(--text-muted);font-size:0.9rem;margin-bottom:12px">${evt.date || ""} • ${evt.venue || ""}</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+            <button class="login-btn" data-event-id="${evt.id}" data-target="${subContainerId}">
+              <i class="fas fa-layer-group"></i>
+              <span>View Sub-events</span>
+            </button>
+          </div>
+          <div id="${subContainerId}" style="display:none;grid-template-columns:repeat(2,1fr);gap:12px;max-height:260px;overflow:auto;padding-right:6px"></div>
+        `;
+
+        eventsListEl.appendChild(card);
+      });
+
+      eventsListEl.querySelectorAll("button[data-event-id]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const eventId = btn.getAttribute("data-event-id");
+          const targetId = btn.getAttribute("data-target");
+          const container = document.getElementById(targetId);
+          if (!container) return;
+          await toggleSubEvents(eventId, container, btn);
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      renderEmpty(`Error loading events: ${err.message || "Unknown error"}`);
+    }
+  }
+
+  // kick off immediately + on load (in case DOM events already fired)
+  try { loadEvents(); } catch (e) {}
+  document.addEventListener("DOMContentLoaded", loadEvents);
+  window.addEventListener("load", loadEvents);
+  setTimeout(loadEvents, 600);
+</script>
+</body>
+</html>

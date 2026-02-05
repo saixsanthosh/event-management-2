@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coordinator Dashboard</title>
+
+    <!-- MAIN CSS -->
+    <link rel="stylesheet" href="../css/style.css" />
+
+    <!-- GOOGLE FONT -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FONT AWESOME -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <script>
+const token = localStorage.getItem("token");
+const user = JSON.parse(localStorage.getItem("user"));
+
+if (!token || !user) {
+  window.location.href = "../index.html";
+}
+
+if (user.role !== "Coordinator") {
+  alert("Access denied");
+  window.location.href = "../index.html";
+}
+</script>
+
+<!-- THEME TOGGLE -->
+<div class="theme-toggle" id="themeToggle">
+    <i class="fas fa-moon"></i>
+</div>
+
+<!-- BACKGROUND -->
+<div class="bg-animation">
+    <div class="floating-shapes">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+    </div>
+</div>
+
+<!-- MAIN CONTAINER -->
+<div class="login-container">
+    <div class="login-box">
+
+        <!-- LEFT SIDE -->
+        <div class="login-left" style="flex:0 0 25%;max-width:25%">
+            <div class="brand-content">
+                <div class="logo-icon">
+                    <i class="fas fa-user-cog"></i>
+                </div>
+
+                <h1>Coordinator Panel</h1>
+                <p>Manage your assigned sub-events</p>
+
+                <div class="features-list">
+                    <div class="feature-item">
+                        <i class="fas fa-users"></i>
+                        <span>View Participants</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-qrcode"></i>
+                        <span>QR Verification</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-user-check"></i>
+                        <span>Mark Attendance</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT SIDE -->
+        <div class="login-right" style="flex:0 0 75%;max-width:75%">
+            <div class="login-form-container" style="max-width:100%">
+
+                <div class="form-header">
+                    <h2>Assigned Sub-Event</h2>
+                    <p id="assignedSubEventLabel">Loading...</p>
+                </div>
+
+                <!-- TABLE -->
+                <div style="overflow-x:auto;max-height:320px;overflow-y:auto;padding-right:6px">
+                    <table style="width:100%;border-collapse:collapse;color:var(--text-primary)">
+                        <thead>
+                            <tr style="background:var(--input-bg)">
+                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Name</th>
+                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">College</th>
+                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Payment</th>
+                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">QR</th>
+                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Attendance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentList"></tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- MAIN JS -->
+<script src="../js/main.js"></script>
+
+<script>
+  // Allow page scroll when content exceeds viewport
+  document.addEventListener("DOMContentLoaded", () => {
+      document.body.style.overflow = "auto";
+  });
+
+  const labelEl = document.getElementById("assignedSubEventLabel");
+  const listEl = document.getElementById("studentList");
+
+  async function fetchJSON(url) {
+      const res = await fetch(url);
+      return res.json();
+  }
+
+  async function pickSubEventId() {
+      const events = await fetchJSON(`${API_BASE}/api/events`);
+      if (!Array.isArray(events) || events.length === 0) {
+          alert("No events found.");
+          return null;
+      }
+
+      const subEventLists = await Promise.all(
+          events.map(e => fetchJSON(`${API_BASE}/api/subevents/${e.id}`))
+      );
+      const subEvents = subEventLists.flat().filter(Boolean);
+
+      if (subEvents.length === 0) {
+          alert("No sub-events found.");
+          return null;
+      }
+
+      const eventMap = new Map(events.map(e => [e.id, e]));
+      const listText = subEvents
+          .map(se => {
+              const ev = eventMap.get(se.eventId);
+              const evName = ev ? ev.name : "Event";
+              return `${se.id}: ${se.name} — ${evName}`;
+          })
+          .join("\n");
+
+      const saved = localStorage.getItem("assignedSubEventId");
+      const input = prompt(`Enter Sub-Event ID:\n${listText}`, saved || subEvents[0].id);
+      if (!input) return null;
+      const id = parseInt(input, 10);
+      const exists = subEvents.some(se => se.id === id);
+      if (!exists) {
+          alert("Invalid Sub-Event ID");
+          return null;
+      }
+      localStorage.setItem("assignedSubEventId", id);
+      return id;
+  }
+
+  async function loadAssignedSubEvent() {
+      const subEventId = await pickSubEventId();
+      if (!subEventId) {
+          labelEl.textContent = "No sub-event selected";
+          return;
+      }
+
+      const subEvent = await fetchJSON(`${API_BASE}/api/subevents/detail/${subEventId}`);
+      const events = await fetchJSON(`${API_BASE}/api/events`);
+      const eventMap = new Map(events.map(e => [e.id, e]));
+      const event = eventMap.get(subEvent.eventId);
+
+      labelEl.textContent = `${subEvent.name} — ${event ? event.name : "Event"}`;
+
+      const registrations = await fetchJSON(`${API_BASE}/api/registrations/${subEventId}`);
+      renderStudents(registrations);
+  }
+
+  function renderStudents(registrations) {
+      listEl.innerHTML = "";
+
+      if (!Array.isArray(registrations) || registrations.length === 0) {
+          listEl.innerHTML = `
+            <tr>
+              <td colspan="5" style="padding:12px;border:1px solid var(--border-color);text-align:center;color:var(--text-muted)">
+                No registrations yet
+              </td>
+            </tr>
+          `;
+          return;
+      }
+
+      registrations.forEach(r => {
+          const payment = r.paymentStatus || "Pending";
+          const qr = payment === "Paid" ? "Generated" : "Not Generated";
+          listEl.innerHTML += `
+              <tr>
+                  <td style="padding:10px;border:1px solid var(--border-color)">${r.name}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color)">${r.college}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color);color:${payment === 'Paid' ? '#38a169' : '#e53e3e'}">${payment}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color)">${qr}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color);text-align:center">
+                      <input type="checkbox">
+                  </td>
+              </tr>
+          `;
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", loadAssignedSubEvent);
+</script>
+
+</body>
+</html>

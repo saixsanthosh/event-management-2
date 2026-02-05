@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coordinator Application</title>
+
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+<script>
+  // Allow page scroll when content exceeds viewport
+  document.addEventListener("DOMContentLoaded", () => {
+      document.body.style.overflow = "auto";
+  });
+  </script>
+
+  <script src="js/notify.js"></script>
+
+<!-- THEME TOGGLE -->
+<div class="theme-toggle" id="themeToggle">
+    <i class="fas fa-moon"></i>
+</div>
+
+<!-- Background -->
+<div class="bg-animation">
+    <div class="floating-shapes">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+    </div>
+</div>
+
+<!-- Container -->
+<div class="login-container">
+    <div class="login-box">
+
+        <!-- LEFT PANEL -->
+        <div class="login-left">
+            <div class="brand-content">
+                <div class="logo-icon">
+                    <i class="fas fa-user-check"></i>
+                </div>
+                <h1>Coordinator Application</h1>
+                <p>Apply to organize and manage events</p>
+
+                <div class="features-list">
+                    <div class="feature-item"><i class="fas fa-check-circle"></i><span>Leadership Role</span></div>
+                    <div class="feature-item"><i class="fas fa-check-circle"></i><span>Certificate Eligible</span></div>
+                    <div class="feature-item"><i class="fas fa-check-circle"></i><span>Skill Development</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="login-right">
+            <div class="login-form-container">
+
+                <div class="form-header">
+                    <h2>Apply as Coordinator / Volunteer</h2>
+                    <p>Fill the form carefully</p>
+                </div>
+
+                <form class="login-form">
+
+                    <!-- AUTO FILLED -->
+                    <div class="input-group">
+                        <select id="eventSelect" required style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--input-bg);color:var(--text-primary)">
+                            <option value="">Select Event</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <select id="subEventSelect" required style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--input-bg);color:var(--text-primary)">
+                            <option value="">Select Sub Event</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <select id="applyRoleSelect" required style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--input-bg);color:var(--text-primary)">
+                            <option value="">Apply As</option>
+                            <option value="Coordinator">Coordinator</option>
+                            <option value="Volunteer">Volunteer</option>
+                        </select>
+                    </div>
+
+                    <!-- USER INPUT -->
+                    <div class="input-group">
+                        <input type="text" placeholder="Full Name" id="appName" required>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="text" placeholder="College Name" id="appCollege" required>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="text" placeholder="Department / Year" id="appDept" required>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="email" placeholder="Email ID" id="appEmail" required>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="tel" placeholder="Mobile Number" id="appMobile" required>
+                    </div>
+
+                    <button class="login-btn" type="submit">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Submit Application</span>
+                    </button>
+
+                </form>
+
+                <div class="form-footer">
+                    <p>Your application status will be updated by the President</p>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+const params = new URLSearchParams(window.location.search);
+const eventParam = params.get("event");
+const subParam = params.get("sub");
+const subEventIdParam = params.get("subEventId");
+
+const eventSelect = document.getElementById("eventSelect");
+const subEventSelect = document.getElementById("subEventSelect");
+
+async function fetchJSON(url) {
+    const res = await fetch(url);
+    return res.json();
+}
+
+function normalizeName(value) {
+    return String(value || "")
+        .replaceAll("_", " ")
+        .trim()
+        .toLowerCase();
+}
+
+async function loadEvents() {
+    const events = await fetchJSON(`${API_BASE}/api/events`);
+    eventSelect.innerHTML = `<option value="">Select Event</option>`;
+
+    if (!Array.isArray(events) || events.length === 0) {
+        return;
+    }
+
+    events.forEach(event => {
+        const option = document.createElement("option");
+        option.value = event.id;
+        option.textContent = event.name;
+        eventSelect.appendChild(option);
+    });
+
+    const storedEventId = localStorage.getItem("applyCoordinatorEventId");
+    const eventParamName = normalizeName(eventParam);
+    let preselectId = "";
+
+    if (eventParamName) {
+        const match = events.find(e => normalizeName(e.name) === eventParamName);
+        if (match) preselectId = String(match.id);
+    } else if (storedEventId) {
+        preselectId = storedEventId;
+    } else {
+        preselectId = String(events[0].id);
+    }
+
+    eventSelect.value = preselectId;
+    if (preselectId) {
+        await loadSubEvents(preselectId);
+    }
+}
+
+async function loadSubEvents(eventId) {
+    subEventSelect.innerHTML = `<option value="">Select Sub Event</option>`;
+    if (!eventId) return;
+
+    const subEvents = await fetchJSON(`${API_BASE}/api/subevents/${eventId}`);
+    if (!Array.isArray(subEvents) || subEvents.length === 0) {
+        return;
+    }
+
+    subEvents.forEach(sub => {
+        const option = document.createElement("option");
+        option.value = sub.id;
+        option.textContent = sub.name;
+        subEventSelect.appendChild(option);
+    });
+
+    const storedSubId = localStorage.getItem("applyCoordinatorSubEventId");
+    const subParamName = normalizeName(subParam);
+    let preselectId = "";
+
+    if (subEventIdParam) {
+        preselectId = String(subEventIdParam);
+    } else if (subParamName) {
+        const match = subEvents.find(s => normalizeName(s.name) === subParamName);
+        if (match) preselectId = String(match.id);
+    } else if (storedSubId) {
+        preselectId = storedSubId;
+    } else {
+        preselectId = String(subEvents[0].id);
+    }
+
+    subEventSelect.value = preselectId;
+}
+
+async function submitApplication(e) {
+    e.preventDefault();
+
+    const name = document.getElementById("appName").value.trim();
+    const college = document.getElementById("appCollege").value.trim();
+    const dept = document.getElementById("appDept").value.trim();
+    const email = document.getElementById("appEmail").value.trim();
+    const mobile = document.getElementById("appMobile").value.trim();
+    const applyRole = document.getElementById("applyRoleSelect").value;
+
+    if (!name || !college || !dept || !email || !mobile || !applyRole) {
+        alert("Please fill all fields");
+        return;
+    }
+
+    const subEventId = subEventSelect.value;
+    if (!subEventId) {
+        alert("Please select a sub-event first");
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/api/apply-role`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name,
+                email,
+                role: applyRole,
+                subEventId
+            })
+        });
+
+        const data = await res.json();
+        if (!data.success) {
+            alert(data.message || "Application failed");
+            return;
+        }
+
+        alert("Application submitted! You will be notified after approval.");
+        document.querySelector(".login-form").reset();
+    } catch (err) {
+        console.error(err);
+        alert("Backend not reachable");
+    }
+}
+
+document.querySelector(".login-form").addEventListener("submit", submitApplication);
+eventSelect.addEventListener("change", async (e) => {
+    const eventId = e.target.value;
+    localStorage.setItem("applyCoordinatorEventId", eventId || "");
+    await loadSubEvents(eventId);
+});
+
+subEventSelect.addEventListener("change", (e) => {
+    localStorage.setItem("applyCoordinatorSubEventId", e.target.value || "");
+});
+
+document.addEventListener("DOMContentLoaded", loadEvents);
+</script>
+
+<script>
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) {
+      document.documentElement.setAttribute("data-theme", savedTheme);
+  }
+  const themeToggle = document.getElementById("themeToggle");
+  if (themeToggle) {
+      themeToggle.addEventListener("click", () => {
+          const html = document.documentElement;
+          const theme = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          html.setAttribute("data-theme", theme);
+          localStorage.setItem("theme", theme);
+      });
+  }
+</script>
+
+</body>
+</html>
