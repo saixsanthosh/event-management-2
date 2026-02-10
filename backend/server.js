@@ -1000,13 +1000,19 @@ app.get("/api/analytics", verifyToken, allowRoles("President", "Faculty"), (req,
   const applications = store.getApplications();
   const payments = store.getPayments();
 
+  const validEventIds = new Set(events.map(e => e.id));
+  const filteredSubEvents = subEvents.filter(se => validEventIds.has(se.eventId));
+  const validSubEventIds = new Set(filteredSubEvents.map(se => se.id));
+  const filteredRegistrations = registrations.filter(r => validSubEventIds.has(r.subEventId));
+  const filteredApplications = applications.filter(a => validSubEventIds.has(a.subEventId));
+
   const regBySub = {};
-  registrations.forEach(r => {
+  filteredRegistrations.forEach(r => {
     const key = String(r.subEventId);
     regBySub[key] = (regBySub[key] || 0) + 1;
   });
 
-  const topSubEvents = subEvents
+  const topSubEvents = filteredSubEvents
     .map(se => ({
       id: se.id,
       name: se.name,
@@ -1016,7 +1022,7 @@ app.get("/api/analytics", verifyToken, allowRoles("President", "Faculty"), (req,
     .sort((a, b) => b.registrations - a.registrations)
     .slice(0, 5);
 
-  const appStatusCounts = applications.reduce((acc, a) => {
+  const appStatusCounts = filteredApplications.reduce((acc, a) => {
     const key = a.status || "Pending";
     acc[key] = (acc[key] || 0) + 1;
     return acc;
@@ -1030,9 +1036,9 @@ app.get("/api/analytics", verifyToken, allowRoles("President", "Faculty"), (req,
 
   res.json({
     events: events.length,
-    subEvents: subEvents.length,
-    registrations: registrations.length,
-    applications: applications.length,
+    subEvents: filteredSubEvents.length,
+    registrations: filteredRegistrations.length,
+    applications: filteredApplications.length,
     topSubEvents,
     appStatusCounts,
     paymentStatusCounts
