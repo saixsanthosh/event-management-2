@@ -52,12 +52,26 @@
 body {
     font-family: 'Poppins', sans-serif;
     background: var(--bg-primary);
+    color: var(--text-primary);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     transition: background 0.3s ease;
+}
+
+/* Ensure readable text in dark mode across pages */
+table,
+th,
+td {
+    color: var(--text-primary);
+}
+
+select,
+option {
+    color: var(--text-primary);
+    background: var(--input-bg);
 }
 
 /* ============================================
