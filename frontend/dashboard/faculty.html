@@ -378,14 +378,19 @@ if (user.role !== "Faculty") {
           );
           const applications = appsLists.flat().filter(Boolean);
 
-          const pendingApps = applications.filter(a => a.status === "Pending");
-          if (pendingApps.length === 0) {
+          const displayApps = applications.filter(a => {
+              if (a.status === "Pending") return true;
+              if (a.status === "Approved" && a.generatedUsername && a.generatedPassword) return true;
+              return false;
+          });
+
+          if (displayApps.length === 0) {
               renderEmptyRoleApproval();
               return;
           }
 
           roleApprovalRequestsEl.innerHTML = "";
-          pendingApps.forEach(app => {
+          displayApps.forEach(app => {
               const sub = subEventMap.get(app.subEventId);
               const event = sub ? eventMap.get(sub.eventId) : null;
               const eventName = event ? event.name : "Event";
@@ -396,21 +401,38 @@ if (user.role !== "Faculty") {
               card.style.padding = "20px";
               card.style.marginBottom = "20px";
 
+              const credsBlock = app.status === "Approved" && app.generatedUsername && app.generatedPassword
+                  ? `
+                    <div style="margin:10px 0;padding:10px;border:1px dashed var(--border-color);border-radius:12px;background:var(--input-bg)">
+                      <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px">Generated Credentials</div>
+                      <div style="font-weight:600;color:var(--text-primary)">Username: ${app.generatedUsername}</div>
+                      <div style="font-weight:600;color:var(--text-primary)">Password: ${app.generatedPassword}</div>
+                    </div>
+                  `
+                  : "";
+
+              const actionsBlock = app.status === "Pending"
+                  ? `
+                    <div style="display:flex;gap:15px">
+                      <button class="login-btn" style="background:#38a169" data-role-action="Approved" data-role-id="${app.id}">
+                        <i class="fas fa-check"></i>
+                        <span>Accept</span>
+                      </button>
+                      <button class="login-btn" style="background:#e53e3e" data-role-action="Rejected" data-role-id="${app.id}">
+                        <i class="fas fa-times"></i>
+                        <span>Decline</span>
+                      </button>
+                    </div>
+                  `
+                  : "";
+
               card.innerHTML = `
                 <h3 style="margin-bottom:8px">${eventName} – ${subName}</h3>
                 <p style="color:var(--text-muted);margin-bottom:15px">
                   ${app.name} • ${app.role} • ${app.email}
                 </p>
-                <div style="display:flex;gap:15px">
-                  <button class="login-btn" style="background:#38a169" data-role-action="Approved" data-role-id="${app.id}">
-                    <i class="fas fa-check"></i>
-                    <span>Accept</span>
-                  </button>
-                  <button class="login-btn" style="background:#e53e3e" data-role-action="Rejected" data-role-id="${app.id}">
-                    <i class="fas fa-times"></i>
-                    <span>Decline</span>
-                  </button>
-                </div>
+                ${credsBlock}
+                ${actionsBlock}
               `;
               roleApprovalRequestsEl.appendChild(card);
           });
@@ -548,6 +570,9 @@ if (user.role !== "Faculty") {
       });
       const data = await res.json();
       if (data.success) {
+          if (status === "Approved" && data.application && data.application.generatedUsername && data.application.generatedPassword) {
+              alert(`Credentials generated:\nUsername: ${data.application.generatedUsername}\nPassword: ${data.application.generatedPassword}`);
+          }
           loadEventsAndApprovals();
       } else {
           alert(data.message || "Update failed");

@@ -5,6 +5,7 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
+const crypto = require("crypto");
 const store = require("./store");
 
 const app = express();
@@ -129,6 +130,21 @@ function isValidPhone(value) {
 function isValidDate(value) {
   if (!value) return true;
   return !Number.isNaN(Date.parse(value));
+}
+
+function generateUsername(role, subEventId, users) {
+  const prefix = role === "Coordinator" ? "coord" : "vol";
+  for (let i = 0; i < 10; i += 1) {
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    const candidate = `${prefix}-${subEventId}-${suffix}`;
+    const exists = users.some(u => u.username === candidate);
+    if (!exists) return candidate;
+  }
+  return null;
+}
+
+function generatePassword() {
+  return crypto.randomBytes(5).toString("hex");
 }
 
 function toSafeInt(value, fallback = null) {
@@ -370,6 +386,14 @@ app.delete("/api/events/:id", rateLimit(30), verifyToken, allowRoles("President"
     const applications = store.getApplications();
     const remainingApps = applications.filter(a => !subEventIds.includes(a.subEventId));
     store.saveApplications(remainingApps);
+
+    const users = store.getUsers();
+    const remainingUsers = users.filter(u => {
+      if (u.role !== "Coordinator" && u.role !== "Volunteer") return true;
+      const sid = Number(u.subEventId);
+      return !subEventIds.includes(sid);
+    });
+    store.saveUsers(remainingUsers);
 
     const removedRegIds = new Set(
       registrations.filter(r => subEventIds.includes(r.subEventId)).map(r => r.id)
@@ -933,6 +957,41 @@ app.post("/api/applications/:id/status", rateLimit(40), verifyToken, allowRoles(
   const appItem = roleApplications.find(a => a.id === id);
   if (!appItem) {
     return res.json({ success: false, message: "Application not found" });
+  }
+
+  const users = store.getUsers();
+
+  if (status === "Approved") {
+    const shouldGenerate = !appItem.generatedUsername || !appItem.generatedPassword || !appItem.assignedUserId;
+    if (shouldGenerate) {
+      const username = generateUsername(appItem.role, appItem.subEventId, users);
+      if (!username) {
+        return res.json({ success: false, message: "Unable to generate username" });
+      }
+      const plainPassword = generatePassword();
+      const hashed = bcrypt.hashSync(plainPassword, 10);
+      const newUser = {
+        id: store.nextId("users"),
+        username,
+        password: hashed,
+        role: appItem.role,
+        subEventId: appItem.subEventId,
+        createdAt: new Date().toISOString()
+      };
+      users.push(newUser);
+      store.saveUsers(users);
+      appItem.generatedUsername = username;
+      appItem.generatedPassword = plainPassword;
+      appItem.assignedUserId = newUser.id;
+    }
+  } else if (status === "Rejected") {
+    if (appItem.assignedUserId) {
+      const remaining = users.filter(u => u.id !== appItem.assignedUserId);
+      store.saveUsers(remaining);
+    }
+    appItem.generatedUsername = "";
+    appItem.generatedPassword = "";
+    appItem.assignedUserId = null;
   }
 
   appItem.status = status;
