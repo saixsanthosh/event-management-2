@@ -539,6 +539,7 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
   const name = sanitizeString(req.body.name, 120);
   const coordinatorLimit = clampInt(req.body.coordinatorLimit, 0, 999, 0);
   const volunteerLimit = clampInt(req.body.volunteerLimit, 0, 999, 0);
+  const fee = clampInt(req.body.fee, 0, 1000000, 0);
   const date = sanitizeString(req.body.date, 40);
   const time = sanitizeString(req.body.time, 20);
   const venue = sanitizeString(req.body.venue, 120);
@@ -561,6 +562,7 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
     name,
     coordinatorLimit,
     volunteerLimit,
+    fee,
     date: date || "",
     time: time || "",
     venue: venue || ""
@@ -611,6 +613,9 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
   const volunteerLimit = req.body.volunteerLimit !== undefined
     ? clampInt(req.body.volunteerLimit, 0, 999, 0)
     : undefined;
+  const fee = req.body.fee !== undefined
+    ? clampInt(req.body.fee, 0, 1000000, 0)
+    : undefined;
   const date = req.body.date !== undefined ? sanitizeString(req.body.date, 40) : undefined;
   const time = req.body.time !== undefined ? sanitizeString(req.body.time, 20) : undefined;
   const venue = req.body.venue !== undefined ? sanitizeString(req.body.venue, 120) : undefined;
@@ -622,6 +627,7 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
   if (name !== undefined) subEvent.name = name;
   if (coordinatorLimit !== undefined) subEvent.coordinatorLimit = Number(coordinatorLimit);
   if (volunteerLimit !== undefined) subEvent.volunteerLimit = Number(volunteerLimit);
+  if (fee !== undefined) subEvent.fee = Number(fee);
   if (date !== undefined) {
     if (!isValidDate(date)) return res.json({ success: false, message: "Invalid date" });
     subEvent.date = date;

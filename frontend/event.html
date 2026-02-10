@@ -322,6 +322,7 @@ async function createSubEvent() {
   const venue = subEventVenueInput.value.trim();
   const coordinatorLimit = subEventCoordinatorsInput.value;
   const volunteerLimit = subEventVolunteersInput.value;
+  const fee = subEventFeeInput.value;
 
   if (!name) {
     alert("Sub-event name required");
@@ -343,6 +344,7 @@ async function createSubEvent() {
         name,
         coordinatorLimit: coordinatorLimit || 0,
         volunteerLimit: volunteerLimit || 0,
+        fee: fee || 0,
         date: "",
         time,
         venue
