@@ -585,4 +585,16 @@ option {
         width: 45px;
         height: 45px;
     }
+
+    body {
+        overflow: auto;
+        align-items: flex-start;
+        justify-content: flex-start;
+    }
+
+    .login-container {
+        width: 100%;
+        min-height: 100vh;
+        padding-bottom: 30px;
+    }
 }
