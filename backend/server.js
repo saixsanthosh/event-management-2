@@ -10,7 +10,7 @@ const store = require("./store");
 const app = express();
 const PORT = 3000;
 const SECRET = "event_secret_key";
-const APPROVAL_SEQUENCE = ["President", "Faculty", "HOD", "Dean", "VP"];
+const APPROVAL_SEQUENCE = ["President", "Faculty", "HOD", "VP", "Dean"];
 
 const fs = require("fs");
 const UPLOAD_DIR = path.join(__dirname, "uploads", "posters");
