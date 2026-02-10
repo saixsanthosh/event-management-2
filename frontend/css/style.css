@@ -547,6 +547,8 @@ option {
     .login-left {
         padding: 40px 30px;
         min-height: auto;
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
     }
 
     .features-list {
@@ -559,6 +561,8 @@ option {
 
     .login-right {
         padding: 40px 30px;
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
     }
 }
 
