@@ -9,9 +9,12 @@ const crypto = require("crypto");
 const store = require("./store");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const HOST = "0.0.0.0";
 const SECRET = "event_secret_key";
 const APPROVAL_SEQUENCE = ["President", "Faculty", "HOD", "VP", "Dean"];
+const LOGIN_MAX_ATTEMPTS = 3;
+const LOGIN_LOCK_MINUTES = 15;
 
 const fs = require("fs");
 const UPLOAD_DIR = path.join(__dirname, "uploads", "posters");
@@ -132,6 +135,15 @@ function isValidDate(value) {
   return !Number.isNaN(Date.parse(value));
 }
 
+function isStrongPassword(value) {
+  const str = String(value || "");
+  if (str.length < 8) return false;
+  if (!/[A-Z]/.test(str)) return false;
+  if (!/[0-9]/.test(str)) return false;
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(str)) return false;
+  return true;
+}
+
 function generateUsername(role, subEventId, users) {
   const prefix = role === "Coordinator" ? "coord" : "vol";
   for (let i = 0; i < 10; i += 1) {
@@ -217,11 +229,25 @@ app.post("/api/auth/login", rateLimit(20), async (req, res) => {
   if (!user) {
     return res.json({ success: false, message: "User not found" });
   }
+  if (user.lockUntil && Date.now() < Date.parse(user.lockUntil)) {
+    return res.json({ success: false, message: `Account locked. Try again after ${user.lockUntil}` });
+  }
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
+    user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+    if (user.failedLoginAttempts >= LOGIN_MAX_ATTEMPTS) {
+      const lockUntil = new Date(Date.now() + LOGIN_LOCK_MINUTES * 60 * 1000).toISOString();
+      user.lockUntil = lockUntil;
+      user.failedLoginAttempts = 0;
+    }
+    store.saveUsers(users);
     return res.json({ success: false, message: "Wrong password" });
   }
+
+  user.failedLoginAttempts = 0;
+  user.lockUntil = null;
+  store.saveUsers(users);
 
   const token = jwt.sign(
     { id: user.id, role: user.role },
@@ -245,6 +271,44 @@ app.post("/api/auth/login", rateLimit(20), async (req, res) => {
     role: user.role,
     details: "User logged in"
   });
+});
+
+/* =========================
+   CHANGE PASSWORD
+========================= */
+app.post("/api/auth/change-password", verifyToken, rateLimit(10), async (req, res) => {
+  const currentPassword = String(req.body.currentPassword || "");
+  const newPassword = String(req.body.newPassword || "");
+  if (!currentPassword || !newPassword) {
+    return res.json({ success: false, message: "Current and new password required" });
+  }
+  if (!isStrongPassword(newPassword)) {
+    return res.json({
+      success: false,
+      message: "Password must be at least 8 chars, include 1 uppercase, 1 number, and 1 symbol"
+    });
+  }
+
+  const users = store.getUsers();
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) {
+    return res.json({ success: false, message: "User not found" });
+  }
+
+  const match = await bcrypt.compare(currentPassword, user.password);
+  if (!match) {
+    return res.json({ success: false, message: "Current password is incorrect" });
+  }
+
+  user.password = await bcrypt.hash(newPassword, 10);
+  store.saveUsers(users);
+  logAudit({
+    action: "Change Password",
+    actor: user.username,
+    role: user.role,
+    details: "Password updated"
+  });
+  res.json({ success: true });
 });
 
 /* =========================
@@ -1111,6 +1175,6 @@ app.get("/", (req, res) => {
   res.send("Backend running with login system");
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
 });

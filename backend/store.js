@@ -46,13 +46,13 @@ function seedDefaultUsers() {
   const filePath = getPath("users");
   if (fs.existsSync(filePath)) return;
   const defaults = [
-    { id: 1, username: "president", password: bcrypt.hashSync("1234", 10), role: "President" },
-    { id: 2, username: "faculty", password: bcrypt.hashSync("1234", 10), role: "Faculty" },
-    { id: 3, username: "hod", password: bcrypt.hashSync("1234", 10), role: "HOD" },
-    { id: 4, username: "vp", password: bcrypt.hashSync("1234", 10), role: "VP" },
-    { id: 5, username: "dean", password: bcrypt.hashSync("1234", 10), role: "Dean" },
-    { id: 6, username: "coordinator", password: bcrypt.hashSync("1234", 10), role: "Coordinator" },
-    { id: 7, username: "volunteer", password: bcrypt.hashSync("1234", 10), role: "Volunteer" },
+    { id: 1, username: "president", password: bcrypt.hashSync("1234", 10), role: "President", failedLoginAttempts: 0, lockUntil: null },
+    { id: 2, username: "faculty", password: bcrypt.hashSync("1234", 10), role: "Faculty", failedLoginAttempts: 0, lockUntil: null },
+    { id: 3, username: "hod", password: bcrypt.hashSync("1234", 10), role: "HOD", failedLoginAttempts: 0, lockUntil: null },
+    { id: 4, username: "vp", password: bcrypt.hashSync("1234", 10), role: "VP", failedLoginAttempts: 0, lockUntil: null },
+    { id: 5, username: "dean", password: bcrypt.hashSync("1234", 10), role: "Dean", failedLoginAttempts: 0, lockUntil: null },
+    { id: 6, username: "coordinator", password: bcrypt.hashSync("1234", 10), role: "Coordinator", failedLoginAttempts: 0, lockUntil: null },
+    { id: 7, username: "volunteer", password: bcrypt.hashSync("1234", 10), role: "Volunteer", failedLoginAttempts: 0, lockUntil: null },
   ];
   write("users", defaults);
 }
