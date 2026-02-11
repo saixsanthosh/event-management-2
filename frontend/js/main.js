@@ -471,30 +471,33 @@ function showError(msg) {
 
     const pointerX = (pointer.x - 0.5) * 2;
     const pointerY = (pointer.y - 0.5) * 2;
+    // Invert mapping so globe movement follows pointer/touch direction naturally.
+    const interactionX = -pointerX;
+    const interactionY = -pointerY;
 
     if (!themeColors) refreshThemeColors();
 
     const cx =
       width * 0.5 +
       Math.sin(t * 0.18) * width * 0.04 +
-      pointerX * width * 0.08 * interactionStrength;
+      interactionX * width * 0.08 * interactionStrength;
     const cy =
       height * 0.52 +
       Math.cos(t * 0.15) * height * 0.03 +
-      pointerY * height * 0.06 * interactionStrength;
+      interactionY * height * 0.06 * interactionStrength;
     const radius = Math.min(width, height) * 1.8;
     const rotY =
       t * 0.18 +
       Math.sin(t * 0.32) * 0.35 +
-      pointerX * 0.85 * interactionStrength;
+      interactionX * 0.85 * interactionStrength;
     const rotX =
       t * 0.14 +
       Math.cos(t * 0.26) * 0.3 +
-      pointerY * 0.65 * interactionStrength;
+      interactionY * 0.65 * interactionStrength;
     const rotZ =
       t * 0.12 +
       Math.sin(t * 0.22) * 0.25 +
-      (pointerX - pointerY) * 0.32 * interactionStrength;
+      (interactionX - interactionY) * 0.32 * interactionStrength;
 
     const cosY = Math.cos(rotY);
     const sinY = Math.sin(rotY);
