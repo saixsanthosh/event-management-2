@@ -360,20 +360,24 @@ function showError(msg) {
     alphaRange: 0.28
   };
   const mobileSceneConfig = {
-    pointMin: 900,
-    pointMax: 2200,
-    densityDivisor: 600,
-    sizeBase: 1.6,
-    sizeRange: 2.3,
-    alphaBase: 0.04,
-    alphaRange: 0.2
+    pointMin: 1300,
+    pointMax: 2800,
+    densityDivisor: 500,
+    sizeBase: 1.85,
+    sizeRange: 2.6,
+    alphaBase: 0.05,
+    alphaRange: 0.23
   };
   let sceneConfig = desktopSceneConfig;
+  let isMobileScene = false;
+  let lastFrameAt = 0;
+  let frameHandle = null;
 
   function refreshSceneConfig() {
     const isMobile =
       window.matchMedia &&
       window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+    isMobileScene = Boolean(isMobile);
     sceneConfig = isMobile ? mobileSceneConfig : desktopSceneConfig;
   }
 
@@ -390,16 +394,28 @@ function showError(msg) {
     pointerActive = true;
     pointerType = inputType || "mouse";
     lastPointerInputAt = performance.now();
+    queueFrame();
   }
 
   function releasePointer() {
     pointerActive = false;
+    queueFrame();
+  }
+
+  function queueFrame() {
+    if (frameHandle !== null) return;
+    frameHandle = requestAnimationFrame((nextTime) => {
+      frameHandle = null;
+      draw(nextTime);
+    });
   }
 
   function resize() {
+    refreshSceneConfig();
     width = container.clientWidth || window.innerWidth;
     height = container.clientHeight || window.innerHeight;
-    dpr = window.devicePixelRatio || 1;
+    const rawDpr = window.devicePixelRatio || 1;
+    dpr = isMobileScene ? Math.min(1.8, rawDpr) : rawDpr;
 
     canvas.width = width * dpr;
     canvas.height = height * dpr;
@@ -484,11 +500,16 @@ function showError(msg) {
   function draw(time) {
     ctx.clearRect(0, 0, width, height);
 
+    const frameDelta = lastFrameAt ? Math.min(50, Math.max(8, time - lastFrameAt)) : 16.67;
+    lastFrameAt = time;
+    const frameScale = frameDelta / 16.67;
     const t = time * 0.001;
     const isTouchInput = pointerType === "touch";
-    const followLerp = isTouchInput ? 0.065 : 0.08;
-    const returnLerp = isTouchInput ? 0.025 : 0.035;
-    const sensitivity = isTouchInput ? 0.55 : 0.92;
+    const followLerpBase = isTouchInput ? 0.11 : 0.08;
+    const returnLerpBase = isTouchInput ? 0.04 : 0.035;
+    const followLerp = 1 - Math.pow(1 - followLerpBase, frameScale);
+    const returnLerp = 1 - Math.pow(1 - returnLerpBase, frameScale);
+    const sensitivity = isTouchInput ? 0.62 : 0.92;
     const inactiveFor = performance.now() - lastPointerInputAt;
     const interactionStrength = pointerActive
       ? 1
@@ -582,8 +603,8 @@ function showError(msg) {
 
     ctx.restore();
 
-    if (!reducedMotion) {
-      requestAnimationFrame(draw);
+    if (!reducedMotion || pointerActive || interactionStrength > 0.001) {
+      queueFrame();
     }
   }
 
@@ -639,11 +660,13 @@ function showError(msg) {
   window.addEventListener("resize", () => {
     resize();
     buildScene();
+    queueFrame();
   });
 
   window.addEventListener("theme:changed", () => {
     refreshThemeColors();
+    queueFrame();
   });
 
-  requestAnimationFrame(draw);
+  queueFrame();
 })();
