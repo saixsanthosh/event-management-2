@@ -88,11 +88,50 @@
 <script>
   const eventsListEl = document.getElementById("eventsList");
   const API_ORIGIN = window.location.origin;
+  const EVENT_STATUSES = ["Upcoming", "Ongoing", "Completed"];
 
   async function fetchJSON(url, options) {
     const res = await fetch(url, options);
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    return res.json();
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (err) {
+      data = null;
+    }
+    if (!res.ok) {
+      const message = data && data.message ? data.message : `Request failed (${res.status})`;
+      throw new Error(message);
+    }
+    return data;
+  }
+
+  function getToken() {
+    return localStorage.getItem("token");
+  }
+
+  function getAuthHeaders(useJson = false) {
+    const value = getToken();
+    const headers = {};
+    if (useJson) headers["Content-Type"] = "application/json";
+    if (value) headers["Authorization"] = `Bearer ${value}`;
+    return headers;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (ch) => {
+      const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
+      return map[ch] || ch;
+    });
+  }
+
+  function toDateInputValue(value) {
+    const input = String(value || "").trim();
+    if (!input) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+    const parsed = new Date(input);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toISOString().slice(0, 10);
   }
 
   function renderEmpty(message) {
@@ -111,8 +150,8 @@
     card.style.background = "var(--bg-secondary)";
     card.style.color = "var(--text-primary)";
     card.innerHTML = `
-      <div style="font-weight:600;margin-bottom:6px;color:var(--text-primary)">${se.name}</div>
-      <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:8px">${se.time || ""} • ${se.venue || ""}</div>
+      <div style="font-weight:600;margin-bottom:6px;color:var(--text-primary)">${escapeHtml(se.name)}</div>
+      <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:8px">${escapeHtml(se.time || "")} • ${escapeHtml(se.venue || "")}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;color:var(--text-muted);font-size:0.8rem">
         <span>Coords: ${se.coordinatorLimit || 0}</span>
         <span>Volunteers: ${se.volunteerLimit || 0}</span>
@@ -120,6 +159,137 @@
       </div>
     `;
     return card;
+  }
+
+  function openEditEventModal(evt) {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop";
+      const status = EVENT_STATUSES.includes(evt.status) ? evt.status : "Upcoming";
+      backdrop.innerHTML = `
+        <div class="modal-card" role="dialog" aria-modal="true" style="width:min(94vw,560px);text-transform:none">
+          <div class="modal-title">Edit Event</div>
+          <div class="modal-message">Update details for <strong>${escapeHtml(evt.name)}</strong>.</div>
+          <form id="editEventForm" style="display:grid;gap:12px">
+            <input class="modal-input" id="editEventName" placeholder="Event name" value="${escapeHtml(evt.name || "")}" required />
+            <input class="modal-input" id="editEventDate" type="date" value="${escapeHtml(toDateInputValue(evt.date))}" />
+            <input class="modal-input" id="editEventDescription" placeholder="Description / Venue" value="${escapeHtml(evt.description || "")}" />
+            <select class="modal-input" id="editEventStatus">
+              ${EVENT_STATUSES.map((item) => `<option value="${item}" ${item === status ? "selected" : ""}>${item}</option>`).join("")}
+            </select>
+            <div class="modal-actions">
+              <button class="login-btn" data-action="cancel" type="button">Cancel</button>
+              <button class="login-btn" data-action="save" type="submit">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+
+      const form = backdrop.querySelector("#editEventForm");
+      const nameInput = backdrop.querySelector("#editEventName");
+      const dateInput = backdrop.querySelector("#editEventDate");
+      const descInput = backdrop.querySelector("#editEventDescription");
+      const statusInput = backdrop.querySelector("#editEventStatus");
+      const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+      const handleEscape = (e) => {
+        if (e.key === "Escape") cleanup(null);
+      };
+      let settled = false;
+
+      const cleanup = (result) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(result);
+      };
+
+      cancelBtn.addEventListener("click", () => cleanup(null));
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) cleanup(null);
+      });
+      document.addEventListener("keydown", handleEscape);
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = nameInput.value.trim();
+        if (!name) {
+          alert("Event name is required");
+          nameInput.focus();
+          return;
+        }
+        cleanup({
+          name,
+          date: dateInput.value.trim(),
+          description: descInput.value.trim(),
+          status: statusInput.value
+        });
+      });
+
+      setTimeout(() => nameInput.focus(), 0);
+    });
+  }
+
+  async function updateEvent(evt) {
+    const tokenValue = getToken();
+    if (!tokenValue) {
+      alert("Login required");
+      return;
+    }
+
+    const payload = await openEditEventModal(evt);
+    if (!payload) return;
+
+    try {
+      const data = await fetchJSON(`${API_ORIGIN}/api/events/${evt.id}`, {
+        method: "PUT",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify(payload)
+      });
+      if (!data || data.success !== true) {
+        alert((data && data.message) || "Unable to update event");
+        return;
+      }
+      alert("Event updated successfully");
+      await loadEvents();
+    } catch (err) {
+      console.error(err);
+      alert(`Update failed: ${err.message || "Unknown error"}`);
+    }
+  }
+
+  async function deleteEvent(evt) {
+    const tokenValue = getToken();
+    if (!tokenValue) {
+      alert("Login required");
+      return;
+    }
+
+    const message = `Delete event "${evt.name}"?\n\nThis will also delete all sub-events, registrations, and role assignments under it.`;
+    let confirmed = false;
+    if (window.uiConfirm) {
+      confirmed = await window.uiConfirm({ title: "Delete Event", message });
+    } else {
+      confirmed = window.confirm(message);
+    }
+    if (!confirmed) return;
+
+    try {
+      const data = await fetchJSON(`${API_ORIGIN}/api/events/${evt.id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(false)
+      });
+      if (!data || data.success !== true) {
+        alert((data && data.message) || "Unable to delete event");
+        return;
+      }
+      alert("Event deleted successfully");
+      await loadEvents();
+    } catch (err) {
+      console.error(err);
+      alert(`Delete failed: ${err.message || "Unknown error"}`);
+    }
   }
 
   async function toggleSubEvents(eventId, container, button) {
@@ -174,6 +344,12 @@
 
       eventsListEl.innerHTML = "";
       events.forEach(evt => {
+        const eventName = escapeHtml(evt.name || "");
+        const eventDate = escapeHtml(evt.date || "No date");
+        const eventDescription = escapeHtml(evt.description || "No description");
+        const eventStatus = escapeHtml(evt.status || "Upcoming");
+        const approval = escapeHtml(evt.approvalStatus || "Draft");
+
         const card = document.createElement("div");
         card.style.border = "2px solid var(--border-color)";
         card.style.borderRadius = "16px";
@@ -184,28 +360,60 @@
         const subContainerId = `sub-${evt.id}`;
         card.style.color = "var(--text-primary)";
         card.innerHTML = `
-          <div style="font-weight:600;margin-bottom:6px;color:var(--text-primary)">${evt.name}</div>
-          <div style="color:var(--text-muted);font-size:0.9rem;margin-bottom:12px">${evt.date || ""} • ${evt.venue || ""}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">
+            <div style="font-weight:600;color:var(--text-primary)">${eventName}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted)">ID: ${evt.id}</div>
+          </div>
+          <div style="color:var(--text-muted);font-size:0.9rem;margin-bottom:8px">${eventDate}</div>
+          <div style="color:var(--text-secondary);font-size:0.85rem;line-height:1.3;margin-bottom:10px">${eventDescription}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;color:var(--text-muted);font-size:0.78rem">
+            <span style="border:1px solid var(--border-color);padding:4px 8px;border-radius:999px">Status: ${eventStatus}</span>
+            <span style="border:1px solid var(--border-color);padding:4px 8px;border-radius:999px">Approval: ${approval}</span>
+          </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-            <button class="login-btn" data-event-id="${evt.id}" data-target="${subContainerId}">
+            <button class="login-btn" data-action="toggle-subevents" data-event-id="${evt.id}" data-target="${subContainerId}">
               <i class="fas fa-layer-group"></i>
               <span>View Sub-events</span>
+            </button>
+            <button class="login-btn" data-action="edit-event" data-event-id="${evt.id}" style="background:linear-gradient(135deg,#5f9df7,#4c6fff)">
+              <i class="fas fa-pen-to-square"></i>
+              <span>Edit Event</span>
+            </button>
+            <button class="login-btn" data-action="delete-event" data-event-id="${evt.id}" style="background:linear-gradient(135deg,#fc8181,#f56565)">
+              <i class="fas fa-trash"></i>
+              <span>Delete Event</span>
             </button>
           </div>
           <div id="${subContainerId}" style="display:none;grid-template-columns:repeat(2,1fr);gap:12px;max-height:260px;overflow:auto;padding-right:6px"></div>
         `;
 
         eventsListEl.appendChild(card);
-      });
 
-      eventsListEl.querySelectorAll("button[data-event-id]").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          const eventId = btn.getAttribute("data-event-id");
-          const targetId = btn.getAttribute("data-target");
-          const container = document.getElementById(targetId);
-          if (!container) return;
-          await toggleSubEvents(eventId, container, btn);
-        });
+        const toggleBtn = card.querySelector('button[data-action="toggle-subevents"]');
+        const editBtn = card.querySelector('button[data-action="edit-event"]');
+        const deleteBtn = card.querySelector('button[data-action="delete-event"]');
+
+        if (toggleBtn) {
+          toggleBtn.addEventListener("click", async () => {
+            const eventId = toggleBtn.getAttribute("data-event-id");
+            const targetId = toggleBtn.getAttribute("data-target");
+            const container = document.getElementById(targetId);
+            if (!container) return;
+            await toggleSubEvents(eventId, container, toggleBtn);
+          });
+        }
+
+        if (editBtn) {
+          editBtn.addEventListener("click", async () => {
+            await updateEvent(evt);
+          });
+        }
+
+        if (deleteBtn) {
+          deleteBtn.addEventListener("click", async () => {
+            await deleteEvent(evt);
+          });
+        }
       });
     } catch (err) {
       console.error(err);
