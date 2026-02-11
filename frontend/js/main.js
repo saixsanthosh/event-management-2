@@ -350,6 +350,32 @@ function showError(msg) {
   let pointerType = "mouse";
   let lastPointerInputAt = 0;
   const interactionFadeMs = 2200;
+  const desktopSceneConfig = {
+    pointMin: 2600,
+    pointMax: 7000,
+    densityDivisor: 380,
+    sizeBase: 2.4,
+    sizeRange: 3.6,
+    alphaBase: 0.08,
+    alphaRange: 0.28
+  };
+  const mobileSceneConfig = {
+    pointMin: 900,
+    pointMax: 2200,
+    densityDivisor: 600,
+    sizeBase: 1.6,
+    sizeRange: 2.3,
+    alphaBase: 0.04,
+    alphaRange: 0.2
+  };
+  let sceneConfig = desktopSceneConfig;
+
+  function refreshSceneConfig() {
+    const isMobile =
+      window.matchMedia &&
+      window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+    sceneConfig = isMobile ? mobileSceneConfig : desktopSceneConfig;
+  }
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -426,10 +452,11 @@ function showError(msg) {
   }
 
   function buildScene() {
+    refreshSceneConfig();
     points.length = 0;
     const pointCount = Math.min(
-      7000,
-      Math.max(2600, Math.floor((width * height) / 380))
+      sceneConfig.pointMax,
+      Math.max(sceneConfig.pointMin, Math.floor((width * height) / sceneConfig.densityDivisor))
     );
     for (let i = 0; i < pointCount; i += 1) {
       const u = Math.random();
@@ -447,8 +474,8 @@ function showError(msg) {
         x,
         y,
         z,
-        size: 2.4 + Math.random() * 3.6,
-        alpha: 0.08 + Math.random() * 0.28,
+        size: sceneConfig.sizeBase + Math.random() * sceneConfig.sizeRange,
+        alpha: sceneConfig.alphaBase + Math.random() * sceneConfig.alphaRange,
         jitter: Math.random() * Math.PI * 2
       });
     }
