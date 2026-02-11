@@ -253,6 +253,45 @@ if (themeToggle) {
 }
 
 /* =========================
+   GLOBAL BACK BUTTON
+========================= */
+(function initBackButton() {
+  const path = (window.location.pathname || "").toLowerCase();
+  const trimmedPath = path.replace(/\/+$/, "");
+  const currentFile = trimmedPath.split("/").pop() || "";
+  const isMainPage = !trimmedPath || currentFile === "index.html";
+  if (isMainPage) return;
+
+  if (!document.body || document.querySelector(".nav-back-btn")) return;
+
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.className = "nav-back-btn";
+  backBtn.setAttribute("aria-label", "Go back");
+  backBtn.setAttribute("title", "Go back");
+  backBtn.innerHTML = '<i class="fas fa-arrow-left" aria-hidden="true"></i>';
+
+  function hasInternalReferrer() {
+    if (!document.referrer) return false;
+    try {
+      return new URL(document.referrer).origin === window.location.origin;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  backBtn.addEventListener("click", () => {
+    if (hasInternalReferrer()) {
+      window.history.back();
+      return;
+    }
+    window.location.href = `${API_BASE}/index.html`;
+  });
+
+  document.body.appendChild(backBtn);
+})();
+
+/* =========================
    PASSWORD TOGGLE
 ========================= */
 const passwordToggle = document.getElementById("passwordToggle");
