@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -129,7 +129,7 @@ if (user.role !== "President") {
             <span>UPI QR</span>
           </a>
 
-          <button class="login-btn">
+          <button class="login-btn" id="setFeeBtn">
             <i class="fas fa-indian-rupee-sign"></i>
             <span>Set Fee</span>
           </button>
@@ -268,6 +268,7 @@ const subEventCountEl = document.getElementById("subEventCount");
 const registrationCountEl = document.getElementById("registrationCount");
 const pendingAppsCountEl = document.getElementById("pendingAppsCount");
 const sendApprovalBtn = document.getElementById("sendApprovalBtn");
+const setFeeBtn = document.getElementById("setFeeBtn");
 const paymentRequestsEl = document.getElementById("paymentRequests");
 const wfInputs = {
   President: document.getElementById("wfPresident"),
@@ -487,6 +488,123 @@ document.addEventListener("DOMContentLoaded", () => {
   loadPayments();
 });
 
+async function updateSubEventFee(id, fee, token) {
+  const res = await fetch(`${API_BASE}/api/subevents/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ fee })
+  });
+  return res.json();
+}
+
+async function handleSetFee() {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    alert("Login required");
+    return;
+  }
+
+  const events = await fetchJSON(`${API_BASE}/api/events`);
+  if (!Array.isArray(events) || events.length === 0) {
+    alert("No events found");
+    return;
+  }
+
+  const list = events.map(e => `${e.id}: ${e.name}`).join("\n");
+  const eventIdInput = await window.uiPrompt({
+    title: "Select Event",
+    message: `Choose event for fee:\n${list}`,
+    defaultValue: localStorage.getItem("feeEventId") || events[0].id
+  });
+  if (!eventIdInput) return;
+  const eventId = parseInt(eventIdInput, 10);
+  const event = events.find(e => e.id === eventId);
+  if (!event) {
+    alert("Invalid Event ID");
+    return;
+  }
+  localStorage.setItem("feeEventId", eventId);
+
+  const scopeInput = await window.uiPrompt({
+    title: "Fee Scope",
+    message: "Type ALL to set fee for all sub-events, or SUB to set a single sub-event:",
+    defaultValue: "ALL"
+  });
+  if (!scopeInput) return;
+  const scope = scopeInput.trim().toUpperCase();
+  if (!["ALL", "SUB"].includes(scope)) {
+    alert("Invalid option. Type ALL or SUB.");
+    return;
+  }
+
+  const subEvents = await fetchJSON(`${API_BASE}/api/subevents/${eventId}`);
+  if (!Array.isArray(subEvents) || subEvents.length === 0) {
+    alert("No sub-events found for this event.");
+    return;
+  }
+
+  if (scope === "ALL") {
+    const feeInput = await window.uiPrompt({
+      title: "Set Event Fee",
+      message: "Enter fee amount to apply to all sub-events:",
+      defaultValue: "0"
+    });
+    if (feeInput === null) return;
+    const fee = Number(feeInput);
+    if (!Number.isFinite(fee) || fee < 0) {
+      alert("Invalid fee amount");
+      return;
+    }
+
+    const updates = await Promise.all(
+      subEvents.map(se => updateSubEventFee(se.id, fee, token))
+    );
+    const failed = updates.find(u => !u.success);
+    if (failed) {
+      alert(failed.message || "Failed to update fees");
+      return;
+    }
+    alert("Fee updated for all sub-events");
+    return;
+  }
+
+  const subList = subEvents.map(se => `${se.id}: ${se.name}`).join("\n");
+  const subIdInput = await window.uiPrompt({
+    title: "Select Sub-Event",
+    message: `Choose sub-event to set fee:\n${subList}`,
+    defaultValue: subEvents[0].id
+  });
+  if (!subIdInput) return;
+  const subId = parseInt(subIdInput, 10);
+  const subEvent = subEvents.find(se => se.id === subId);
+  if (!subEvent) {
+    alert("Invalid Sub-Event ID");
+    return;
+  }
+
+  const feeInput = await window.uiPrompt({
+    title: "Set Sub-Event Fee",
+    message: `Enter fee amount for "${subEvent.name}":`,
+    defaultValue: String(subEvent.fee ?? 0)
+  });
+  if (feeInput === null) return;
+  const fee = Number(feeInput);
+  if (!Number.isFinite(fee) || fee < 0) {
+    alert("Invalid fee amount");
+    return;
+  }
+
+  const data = await updateSubEventFee(subId, fee, token);
+  if (data.success) {
+    alert("Sub-event fee updated");
+  } else {
+    alert(data.message || "Failed to update fee");
+  }
+}
+
 async function handleApprovalFlow() {
   try {
     const events = await fetchJSON(`${API_BASE}/api/events`);
@@ -501,7 +619,10 @@ async function handleApprovalFlow() {
       return `${e.id}: ${e.name} [${status} @ ${stage}]`;
     }).join("\n");
 
-    const input = prompt(`Enter Event ID:\n${list}`);
+    const input = await window.uiPrompt({
+      title: "Select Event",
+      message: `Enter Event ID:\n${list}`
+    });
     if (!input) return;
     const id = parseInt(input, 10);
     const event = events.find(e => e.id === id);
@@ -546,6 +667,10 @@ async function handleApprovalFlow() {
 
 if (sendApprovalBtn) {
   sendApprovalBtn.addEventListener("click", handleApprovalFlow);
+}
+
+if (setFeeBtn) {
+  setFeeBtn.addEventListener("click", handleSetFee);
 }
 </script>
 

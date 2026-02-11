@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -149,7 +149,11 @@ if (user.role !== "Coordinator") {
           .join("\n");
 
       const saved = localStorage.getItem("assignedSubEventId");
-      const input = prompt(`Enter Sub-Event ID:\n${listText}`, saved || subEvents[0].id);
+      const input = await window.uiPrompt({
+          title: "Select Sub-Event",
+          message: `Enter Sub-Event ID:\n${listText}`,
+          defaultValue: saved || subEvents[0].id
+      });
       if (!input) return null;
       const id = parseInt(input, 10);
       const exists = subEvents.some(se => se.id === id);

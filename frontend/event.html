@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 
 <head>
     <meta charset="UTF-8">
@@ -208,6 +208,85 @@ const subEventCoordinatorsInput = document.getElementById("subEventCoordinators"
 const subEventVolunteersInput = document.getElementById("subEventVolunteers");
 const subEventFeeInput = document.getElementById("subEventFee");
 
+function uiPrompt({ title, message, defaultValue = "", placeholder = "" }) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <div class="modal-title">${title || "Input Required"}</div>
+        <div class="modal-message">${message || ""}</div>
+        <input class="modal-input" placeholder="${placeholder}" value="${String(defaultValue)}" />
+        <div class="modal-actions">
+          <button class="login-btn" data-action="cancel" type="button">Cancel</button>
+          <button class="login-btn" data-action="ok" type="button">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const input = backdrop.querySelector(".modal-input");
+    const okBtn = backdrop.querySelector('[data-action="ok"]');
+    const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+
+    const cleanup = (value) => {
+      backdrop.remove();
+      resolve(value);
+    };
+
+    okBtn.addEventListener("click", () => cleanup(input.value));
+    cancelBtn.addEventListener("click", () => cleanup(null));
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) cleanup(null);
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") cleanup(input.value);
+      if (e.key === "Escape") cleanup(null);
+    });
+
+    setTimeout(() => input.focus(), 0);
+  });
+}
+
+function uiConfirm({ title, message }) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <div class="modal-title">${title || "Confirm"}</div>
+        <div class="modal-message">${message || "Are you sure?"}</div>
+        <div class="modal-actions">
+          <button class="login-btn" data-action="cancel" type="button">Cancel</button>
+          <button class="login-btn" data-action="ok" type="button">Confirm</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const okBtn = backdrop.querySelector('[data-action="ok"]');
+    const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+
+    const cleanup = (value) => {
+      backdrop.remove();
+      resolve(value);
+    };
+
+    okBtn.addEventListener("click", () => cleanup(true));
+    cancelBtn.addEventListener("click", () => cleanup(false));
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) cleanup(false);
+    });
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape") cleanup(false);
+      },
+      { once: true }
+    );
+  });
+}
+
 function getToken() {
   return localStorage.getItem("token");
 }
@@ -225,7 +304,11 @@ async function pickEventId() {
   }
   const list = events.map(e => `${e.id}: ${e.name}`).join("\n");
   const defaultId = localStorage.getItem("activeEventId") || events[0].id;
-  const input = prompt(`Enter Event ID:\n${list}`, defaultId);
+  const input = await uiPrompt({
+    title: "Select Event",
+    message: `Enter Event ID:\n${list}`,
+    defaultValue: defaultId
+  });
   if (!input) return null;
   const id = parseInt(input, 10);
   const exists = events.some(e => e.id === id);
@@ -384,7 +467,10 @@ async function updateEvent() {
   }
 
   const list = events.map(e => `${e.id}: ${e.name}`).join("\n");
-  const input = prompt(`Enter Event ID to update:\n${list}`);
+  const input = await uiPrompt({
+    title: "Update Event",
+    message: `Enter Event ID to update:\n${list}`
+  });
   if (!input) return;
   const id = parseInt(input, 10);
   const current = events.find(e => e.id === id);
@@ -393,13 +479,29 @@ async function updateEvent() {
     return;
   }
 
-  const name = prompt("Event name:", current.name);
+  const name = await uiPrompt({
+    title: "Event Name",
+    message: "Enter event name:",
+    defaultValue: current.name
+  });
   if (name === null) return;
-  const date = prompt("Event date (YYYY-MM-DD):", current.date || "");
+  const date = await uiPrompt({
+    title: "Event Date",
+    message: "Event date (YYYY-MM-DD):",
+    defaultValue: current.date || ""
+  });
   if (date === null) return;
-  const description = prompt("Event description/venue:", current.description || "");
+  const description = await uiPrompt({
+    title: "Event Description",
+    message: "Event description/venue:",
+    defaultValue: current.description || ""
+  });
   if (description === null) return;
-  const status = prompt("Status (Upcoming/Ongoing/Completed):", current.status || "Upcoming");
+  const status = await uiPrompt({
+    title: "Event Status",
+    message: "Status (Upcoming/Ongoing/Completed):",
+    defaultValue: current.status || "Upcoming"
+  });
   if (status === null) return;
 
   const res = await fetch(`${API_BASE}/api/events/${id}`, {
@@ -433,7 +535,10 @@ async function deleteEvent() {
   }
 
   const list = events.map(e => `${e.id}: ${e.name}`).join("\n");
-  const input = prompt(`Enter Event ID to delete:\n${list}`);
+  const input = await uiPrompt({
+    title: "Delete Event",
+    message: `Enter Event ID to delete:\n${list}`
+  });
   if (!input) return;
   const id = parseInt(input, 10);
   const current = events.find(e => e.id === id);
@@ -442,7 +547,10 @@ async function deleteEvent() {
     return;
   }
 
-  const confirmDelete = confirm(`Delete event "${current.name}"?`);
+  const confirmDelete = await uiConfirm({
+    title: "Confirm Delete",
+    message: `Delete event "${current.name}"?`
+  });
   if (!confirmDelete) return;
 
   const res = await fetch(`${API_BASE}/api/events/${id}`, {
@@ -464,7 +572,10 @@ async function updateSubEvent() {
     return;
   }
 
-  const input = prompt("Enter Sub-Event ID to update:");
+  const input = await uiPrompt({
+    title: "Update Sub-Event",
+    message: "Enter Sub-Event ID to update:"
+  });
   if (!input) return;
   const id = parseInt(input, 10);
 
@@ -475,15 +586,35 @@ async function updateSubEvent() {
   }
   const current = await detailRes.json();
 
-  const name = prompt("Sub-event name:", current.name || "");
+  const name = await uiPrompt({
+    title: "Sub-Event Name",
+    message: "Sub-event name:",
+    defaultValue: current.name || ""
+  });
   if (name === null) return;
-  const time = prompt("Time (HH:MM):", current.time || "");
+  const time = await uiPrompt({
+    title: "Time",
+    message: "Time (HH:MM):",
+    defaultValue: current.time || ""
+  });
   if (time === null) return;
-  const venue = prompt("Venue:", current.venue || "");
+  const venue = await uiPrompt({
+    title: "Venue",
+    message: "Venue:",
+    defaultValue: current.venue || ""
+  });
   if (venue === null) return;
-  const coordinatorLimit = prompt("Coordinators required:", current.coordinatorLimit ?? 0);
+  const coordinatorLimit = await uiPrompt({
+    title: "Coordinators Required",
+    message: "Coordinators required:",
+    defaultValue: current.coordinatorLimit ?? 0
+  });
   if (coordinatorLimit === null) return;
-  const volunteerLimit = prompt("Volunteers required:", current.volunteerLimit ?? 0);
+  const volunteerLimit = await uiPrompt({
+    title: "Volunteers Required",
+    message: "Volunteers required:",
+    defaultValue: current.volunteerLimit ?? 0
+  });
   if (volunteerLimit === null) return;
 
   const res = await fetch(`${API_BASE}/api/subevents/${id}`, {
@@ -515,11 +646,50 @@ async function deleteSubEvent() {
     return;
   }
 
-  const input = prompt("Enter Sub-Event ID to delete:");
-  if (!input) return;
-  const id = parseInt(input, 10);
+  const events = await fetchEvents();
+  if (!Array.isArray(events) || events.length === 0) {
+    alert("No events found.");
+    return;
+  }
 
-  const confirmDelete = confirm(`Delete sub-event ID ${id}?`);
+  const eventList = events.map(e => `${e.id}: ${e.name}`).join("\n");
+  const eventIdInput = await uiPrompt({
+    title: "Select Event",
+    message: `Choose event to manage sub-events:\n${eventList}`,
+    defaultValue: localStorage.getItem("activeEventId") || events[0].id
+  });
+  if (!eventIdInput) return;
+  const eventId = parseInt(eventIdInput, 10);
+  const eventExists = events.some(e => e.id === eventId);
+  if (!eventExists) {
+    alert("Invalid Event ID");
+    return;
+  }
+
+  const subRes = await fetch(`${API_BASE}/api/subevents/${eventId}`);
+  const subEvents = await subRes.json();
+  if (!Array.isArray(subEvents) || subEvents.length === 0) {
+    alert("No sub-events found for this event.");
+    return;
+  }
+
+  const subList = subEvents.map(se => `${se.id}: ${se.name}`).join("\n");
+  const subIdInput = await uiPrompt({
+    title: "Delete Sub-Event",
+    message: `Enter Sub-Event ID to delete:\n${subList}`
+  });
+  if (!subIdInput) return;
+  const id = parseInt(subIdInput, 10);
+  const subExists = subEvents.some(se => se.id === id);
+  if (!subExists) {
+    alert("Invalid Sub-Event ID");
+    return;
+  }
+
+  const confirmDelete = await uiConfirm({
+    title: "Confirm Delete",
+    message: `Delete sub-event ID ${id}?`
+  });
   if (!confirmDelete) return;
 
   const res = await fetch(`${API_BASE}/api/subevents/${id}`, {
@@ -538,7 +708,10 @@ if (createEventBtn) {
   createEventBtn.addEventListener("click", createEvent);
   createEventBtn.addEventListener("contextmenu", async (e) => {
     e.preventDefault();
-    const action = prompt("Type UPDATE or DELETE for main events:");
+    const action = await uiPrompt({
+      title: "Main Event Action",
+      message: "Type UPDATE or DELETE for main events:"
+    });
     if (!action) return;
     if (action.toUpperCase() === "UPDATE") {
       await updateEvent();

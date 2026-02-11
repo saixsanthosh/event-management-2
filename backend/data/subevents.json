@@ -1,15 +1,5 @@
 [
   {
-    "id": 5,
-    "eventId": 2,
-    "name": "SINGING",
-    "coordinatorLimit": 2,
-    "volunteerLimit": 4,
-    "date": "",
-    "time": "10:00",
-    "venue": "SRM AUDITORIUM"
-  },
-  {
     "id": 6,
     "eventId": 3,
     "name": "DANCING",

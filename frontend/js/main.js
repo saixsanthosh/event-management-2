@@ -118,6 +118,92 @@ if (!window.showNotice) {
 }
 
 /* =========================
+   NON-BLOCKING MODALS
+========================= */
+if (!window.uiPrompt) {
+  window.uiPrompt = function uiPrompt({ title, message, defaultValue = "", placeholder = "" }) {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="modal-card" role="dialog" aria-modal="true">
+          <div class="modal-title">${title || "Input Required"}</div>
+          <div class="modal-message">${message || ""}</div>
+          <input class="modal-input" placeholder="${placeholder}" value="${String(defaultValue)}" />
+          <div class="modal-actions">
+            <button class="login-btn" data-action="cancel" type="button">Cancel</button>
+            <button class="login-btn" data-action="ok" type="button">OK</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+
+      const input = backdrop.querySelector(".modal-input");
+      const okBtn = backdrop.querySelector('[data-action="ok"]');
+      const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+
+      const cleanup = (value) => {
+        backdrop.remove();
+        resolve(value);
+      };
+
+      okBtn.addEventListener("click", () => cleanup(input.value));
+      cancelBtn.addEventListener("click", () => cleanup(null));
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) cleanup(null);
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") cleanup(input.value);
+        if (e.key === "Escape") cleanup(null);
+      });
+
+      setTimeout(() => input.focus(), 0);
+    });
+  };
+}
+
+if (!window.uiConfirm) {
+  window.uiConfirm = function uiConfirm({ title, message }) {
+    return new Promise((resolve) => {
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="modal-card" role="dialog" aria-modal="true">
+          <div class="modal-title">${title || "Confirm"}</div>
+          <div class="modal-message">${message || "Are you sure?"}</div>
+          <div class="modal-actions">
+            <button class="login-btn" data-action="cancel" type="button">Cancel</button>
+            <button class="login-btn" data-action="ok" type="button">Confirm</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
+
+      const okBtn = backdrop.querySelector('[data-action="ok"]');
+      const cancelBtn = backdrop.querySelector('[data-action="cancel"]');
+
+      const cleanup = (value) => {
+        backdrop.remove();
+        resolve(value);
+      };
+
+      okBtn.addEventListener("click", () => cleanup(true));
+      cancelBtn.addEventListener("click", () => cleanup(false));
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) cleanup(false);
+      });
+      window.addEventListener(
+        "keydown",
+        (e) => {
+          if (e.key === "Escape") cleanup(false);
+        },
+        { once: true }
+      );
+    });
+  };
+}
+
+/* =========================
    DASHBOARD MAP
 ========================= */
 const dashboardMap = {
@@ -139,6 +225,21 @@ if (savedTheme === "dark" || savedTheme === "light") {
 }
 
 const themeToggle = document.getElementById("themeToggle");
+const themeToggleIcon = themeToggle ? themeToggle.querySelector("i") : null;
+
+function updateThemeIcon(theme) {
+  if (!themeToggleIcon) return;
+  if (theme === "dark") {
+    themeToggleIcon.classList.remove("fa-moon");
+    themeToggleIcon.classList.add("fa-sun");
+  } else {
+    themeToggleIcon.classList.remove("fa-sun");
+    themeToggleIcon.classList.add("fa-moon");
+  }
+}
+
+updateThemeIcon(document.documentElement.getAttribute("data-theme") || "dark");
+
 if (themeToggle) {
   themeToggle.addEventListener("click", () => {
     const html = document.documentElement;
@@ -146,6 +247,8 @@ if (themeToggle) {
       html.getAttribute("data-theme") === "dark" ? "light" : "dark";
     html.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
+    updateThemeIcon(theme);
+    window.dispatchEvent(new Event("theme:changed"));
   });
 }
 
@@ -211,3 +314,194 @@ function showError(msg) {
     errorMessage.querySelector("span").innerText = msg;
   }
 }
+
+/* =========================
+   ANIMATED BACKGROUND (DOT GLOBE)
+========================= */
+(function initAnimatedBackground() {
+  const container = document.querySelector(".bg-animation");
+  if (!container) return;
+
+  if (container.querySelector(".bg-canvas")) return;
+
+  const canvas = document.createElement("canvas");
+  canvas.className = "bg-canvas";
+  container.appendChild(canvas);
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const reducedMotion =
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let width = 0;
+  let height = 0;
+  let dpr = window.devicePixelRatio || 1;
+  const points = [];
+  let themeColors = null;
+
+  function resize() {
+    width = container.clientWidth || window.innerWidth;
+    height = container.clientHeight || window.innerHeight;
+    dpr = window.devicePixelRatio || 1;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function parseColor(input, fallback) {
+    const value = String(input || "").trim();
+    if (!value) return fallback;
+    if (value.startsWith("#")) {
+      const hex = value.replace("#", "");
+      if (hex.length === 3) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        return [r, g, b];
+      }
+      if (hex.length === 6) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return [r, g, b];
+      }
+    }
+    const rgba = value.match(/rgba?\(([^)]+)\)/);
+    if (rgba) {
+      const parts = rgba[1].split(",").map((v) => Number.parseFloat(v.trim()));
+      return [parts[0] || fallback[0], parts[1] || fallback[1], parts[2] || fallback[2]];
+    }
+    return fallback;
+  }
+
+  function refreshThemeColors() {
+    const styles = getComputedStyle(document.documentElement);
+    const dotPrimary = parseColor(styles.getPropertyValue("--dot-primary"), [176, 144, 255]);
+    const dotSecondary = parseColor(styles.getPropertyValue("--dot-secondary"), [120, 76, 255]);
+    const accent = parseColor(styles.getPropertyValue("--accent-color"), [139, 92, 246]);
+    themeColors = {
+      dotPrimary,
+      dotSecondary,
+      accent
+    };
+  }
+
+  function smoothstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  }
+
+  function buildScene() {
+    points.length = 0;
+    const pointCount = Math.min(
+      7000,
+      Math.max(2600, Math.floor((width * height) / 380))
+    );
+    for (let i = 0; i < pointCount; i += 1) {
+      const u = Math.random();
+      const v = Math.random();
+      const theta = u * Math.PI * 2;
+      const phi = Math.acos(2 * v - 1);
+      const r = Math.cbrt(Math.random());
+
+      const sinPhi = Math.sin(phi);
+      const x = r * sinPhi * Math.cos(theta);
+      const y = r * Math.cos(phi);
+      const z = r * sinPhi * Math.sin(theta);
+
+      points.push({
+        x,
+        y,
+        z,
+        size: 2.4 + Math.random() * 3.6,
+        alpha: 0.08 + Math.random() * 0.28,
+        jitter: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  function draw(time) {
+    ctx.clearRect(0, 0, width, height);
+
+    const t = time * 0.001;
+    if (!themeColors) refreshThemeColors();
+
+    const cx = width * 0.5 + Math.sin(t * 0.18) * width * 0.04;
+    const cy = height * 0.52 + Math.cos(t * 0.15) * height * 0.03;
+    const radius = Math.min(width, height) * 1.8;
+    const rotY = t * 0.18 + Math.sin(t * 0.32) * 0.35;
+    const rotX = t * 0.14 + Math.cos(t * 0.26) * 0.3;
+    const rotZ = t * 0.12 + Math.sin(t * 0.22) * 0.25;
+
+    const cosY = Math.cos(rotY);
+    const sinY = Math.sin(rotY);
+    const cosX = Math.cos(rotX);
+    const sinX = Math.sin(rotX);
+    const cosZ = Math.cos(rotZ);
+    const sinZ = Math.sin(rotZ);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+
+    const [r, g, b] = themeColors.dotPrimary;
+    const [r2, g2, b2] = themeColors.dotSecondary;
+
+    points.forEach((point) => {
+      const wobble = 0.01 * Math.sin(t * 1.1 + point.jitter);
+      let x = point.x * (1 + wobble);
+      let y = point.y * (1 + wobble);
+      let z = point.z * (1 + wobble);
+
+      const dx = x * cosY - z * sinY;
+      const dz = x * sinY + z * cosY;
+      const dy = y * cosX - dz * sinX;
+      const dz2 = y * sinX + dz * cosX;
+
+      const dx2 = dx * cosZ - dy * sinZ;
+      const dy2 = dx * sinZ + dy * cosZ;
+
+      const depth = (dz2 + 1.3) / 2.6;
+      const perspective = 1 / (1.6 - dz2 * 0.8);
+      const scale = radius * perspective;
+      const radial = (Math.hypot(dx2, dy2) * scale) / radius;
+      if (radial > 1.08) return;
+      const edgeSoft = 1 - smoothstep(0.72, 1.05, radial);
+
+      const sx = dx2 * scale + cx;
+      const sy = dy2 * scale + cy;
+
+      const size = Math.round(point.size * (0.9 + depth * 1.6) * (0.6 + edgeSoft * 0.8));
+      const alpha = point.alpha * (0.14 + depth * 0.8) * (0.2 + edgeSoft * 0.9);
+
+      const color = dz2 > 0 ? [r, g, b] : [r2, g2, b2];
+      ctx.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`;
+      ctx.fillRect(Math.round(sx), Math.round(sy), size, size);
+    });
+
+    ctx.restore();
+
+    if (!reducedMotion) {
+      requestAnimationFrame(draw);
+    }
+  }
+
+  resize();
+  buildScene();
+  refreshThemeColors();
+
+  window.addEventListener("resize", () => {
+    resize();
+    buildScene();
+  });
+
+  window.addEventListener("theme:changed", () => {
+    refreshThemeColors();
+  });
+
+  requestAnimationFrame(draw);
+})();

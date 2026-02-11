@@ -758,5 +758,317 @@
     "role": "President",
     "details": "User logged in",
     "at": "2026-02-05T12:26:11.959Z"
+  },
+  {
+    "id": 96,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T06:47:52.898Z"
+  },
+  {
+    "id": 97,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T06:57:30.008Z"
+  },
+  {
+    "id": 98,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T06:59:36.563Z"
+  },
+  {
+    "id": 99,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T07:57:32.866Z"
+  },
+  {
+    "id": 100,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T08:21:17.833Z"
+  },
+  {
+    "id": 101,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 1: CASYUM",
+    "at": "2026-02-11T08:21:51.240Z"
+  },
+  {
+    "id": 102,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 8: HACKATHON (Event 1)",
+    "at": "2026-02-11T08:22:23.658Z"
+  },
+  {
+    "id": 103,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 9: FIFA (Event 1)",
+    "at": "2026-02-11T08:35:28.268Z"
+  },
+  {
+    "id": 104,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 2: TEXUS",
+    "at": "2026-02-11T08:35:43.513Z"
+  },
+  {
+    "id": 105,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T08:37:50.444Z"
+  },
+  {
+    "id": 106,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 2 deleted",
+    "at": "2026-02-11T08:38:07.464Z"
+  },
+  {
+    "id": 107,
+    "action": "Create Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 2: TEXUS",
+    "at": "2026-02-11T08:38:45.778Z"
+  },
+  {
+    "id": 108,
+    "action": "Login",
+    "actor": "faculty",
+    "role": "Faculty",
+    "details": "User logged in",
+    "at": "2026-02-11T08:41:08.484Z"
+  },
+  {
+    "id": 109,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T08:41:21.215Z"
+  },
+  {
+    "id": 110,
+    "action": "Apply Role",
+    "actor": "Public",
+    "role": "Student",
+    "details": "Coordinator application 1 for sub-event 8",
+    "at": "2026-02-11T08:42:18.182Z"
+  },
+  {
+    "id": 111,
+    "action": "Login",
+    "actor": "faculty",
+    "role": "Faculty",
+    "details": "User logged in",
+    "at": "2026-02-11T08:42:28.605Z"
+  },
+  {
+    "id": 112,
+    "action": "Update Role Application",
+    "actor": 2,
+    "role": "Faculty",
+    "details": "Application 1 -> Approved",
+    "at": "2026-02-11T08:42:36.440Z"
+  },
+  {
+    "id": 113,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T08:42:57.313Z"
+  },
+  {
+    "id": 114,
+    "action": "Delete Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 9 deleted",
+    "at": "2026-02-11T08:45:22.331Z"
+  },
+  {
+    "id": 115,
+    "action": "Send Event For Approval",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 1: CASYUM -> Faculty",
+    "at": "2026-02-11T08:52:52.776Z"
+  },
+  {
+    "id": 116,
+    "action": "Login",
+    "actor": "faculty",
+    "role": "Faculty",
+    "details": "User logged in",
+    "at": "2026-02-11T08:53:00.216Z"
+  },
+  {
+    "id": 117,
+    "action": "Event Decision",
+    "actor": 2,
+    "role": "Faculty",
+    "details": "Event 1: CASYUM -> Pending @ HOD",
+    "at": "2026-02-11T08:53:08.815Z"
+  },
+  {
+    "id": 118,
+    "action": "Login",
+    "actor": "hod",
+    "role": "HOD",
+    "details": "User logged in",
+    "at": "2026-02-11T08:53:19.301Z"
+  },
+  {
+    "id": 119,
+    "action": "Event Decision",
+    "actor": 3,
+    "role": "HOD",
+    "details": "Event 1: CASYUM -> Pending @ VP",
+    "at": "2026-02-11T08:53:22.892Z"
+  },
+  {
+    "id": 120,
+    "action": "Login",
+    "actor": "vp",
+    "role": "VP",
+    "details": "User logged in",
+    "at": "2026-02-11T08:53:49.889Z"
+  },
+  {
+    "id": 121,
+    "action": "Event Decision",
+    "actor": 4,
+    "role": "VP",
+    "details": "Event 1: CASYUM -> Pending @ Dean",
+    "at": "2026-02-11T08:53:52.782Z"
+  },
+  {
+    "id": 122,
+    "action": "Login",
+    "actor": "dean",
+    "role": "Dean",
+    "details": "User logged in",
+    "at": "2026-02-11T08:54:01.535Z"
+  },
+  {
+    "id": 123,
+    "action": "Event Decision",
+    "actor": 5,
+    "role": "Dean",
+    "details": "Event 1: CASYUM -> Approved @ Approved",
+    "at": "2026-02-11T08:54:04.344Z"
+  },
+  {
+    "id": 124,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T08:54:14.825Z"
+  },
+  {
+    "id": 125,
+    "action": "Create Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 9: FIFA (Event 1)",
+    "at": "2026-02-11T08:55:03.218Z"
+  },
+  {
+    "id": 126,
+    "action": "Update Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 8: HACKATHON",
+    "at": "2026-02-11T09:13:58.506Z"
+  },
+  {
+    "id": 127,
+    "action": "Update Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 9: FIFA",
+    "at": "2026-02-11T09:13:58.509Z"
+  },
+  {
+    "id": 128,
+    "action": "Update Sub-Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Sub-event 9: FIFA",
+    "at": "2026-02-11T09:14:19.746Z"
+  },
+  {
+    "id": 129,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T09:15:24.853Z"
+  },
+  {
+    "id": 130,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T09:15:38.954Z"
+  },
+  {
+    "id": 131,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T09:16:00.479Z"
+  },
+  {
+    "id": 132,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 1 deleted",
+    "at": "2026-02-11T09:17:14.032Z"
+  },
+  {
+    "id": 133,
+    "action": "Delete Event",
+    "actor": 1,
+    "role": "President",
+    "details": "Event 2 deleted",
+    "at": "2026-02-11T09:17:18.742Z"
+  },
+  {
+    "id": 134,
+    "action": "Login",
+    "actor": "president",
+    "role": "President",
+    "details": "User logged in",
+    "at": "2026-02-11T09:29:12.623Z"
   }
 ]

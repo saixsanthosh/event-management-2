@@ -1169,10 +1169,14 @@ app.get("/api/analytics", verifyToken, allowRoles("President", "Faculty"), (req,
 });
 
 /* =========================
-   TEST API
+   BASIC HEALTH + ROOT
 ========================= */
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, at: new Date().toISOString() });
+});
+
 app.get("/", (req, res) => {
-  res.send("Backend running with login system");
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 app.listen(PORT, HOST, () => {
