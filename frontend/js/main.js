@@ -340,6 +340,33 @@ function showError(msg) {
   let dpr = window.devicePixelRatio || 1;
   const points = [];
   let themeColors = null;
+  const pointer = {
+    x: 0.5,
+    y: 0.5,
+    targetX: 0.5,
+    targetY: 0.5
+  };
+  let pointerActive = false;
+  let lastPointerInputAt = 0;
+  const interactionFadeMs = 2200;
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function setPointerFromClient(clientX, clientY) {
+    const rect = container.getBoundingClientRect();
+    const nextX = (clientX - rect.left) / Math.max(1, rect.width);
+    const nextY = (clientY - rect.top) / Math.max(1, rect.height);
+    pointer.targetX = clamp(nextX, 0, 1);
+    pointer.targetY = clamp(nextY, 0, 1);
+    pointerActive = true;
+    lastPointerInputAt = performance.now();
+  }
+
+  function releasePointer() {
+    pointerActive = false;
+  }
 
   function resize() {
     width = container.clientWidth || window.innerWidth;
@@ -429,14 +456,45 @@ function showError(msg) {
     ctx.clearRect(0, 0, width, height);
 
     const t = time * 0.001;
+    const inactiveFor = performance.now() - lastPointerInputAt;
+    const interactionStrength = pointerActive
+      ? 1
+      : clamp(1 - inactiveFor / interactionFadeMs, 0, 1);
+
+    if (!pointerActive) {
+      pointer.targetX += (0.5 - pointer.targetX) * 0.04;
+      pointer.targetY += (0.5 - pointer.targetY) * 0.04;
+    }
+
+    pointer.x += (pointer.targetX - pointer.x) * 0.12;
+    pointer.y += (pointer.targetY - pointer.y) * 0.12;
+
+    const pointerX = (pointer.x - 0.5) * 2;
+    const pointerY = (pointer.y - 0.5) * 2;
+
     if (!themeColors) refreshThemeColors();
 
-    const cx = width * 0.5 + Math.sin(t * 0.18) * width * 0.04;
-    const cy = height * 0.52 + Math.cos(t * 0.15) * height * 0.03;
+    const cx =
+      width * 0.5 +
+      Math.sin(t * 0.18) * width * 0.04 +
+      pointerX * width * 0.08 * interactionStrength;
+    const cy =
+      height * 0.52 +
+      Math.cos(t * 0.15) * height * 0.03 +
+      pointerY * height * 0.06 * interactionStrength;
     const radius = Math.min(width, height) * 1.8;
-    const rotY = t * 0.18 + Math.sin(t * 0.32) * 0.35;
-    const rotX = t * 0.14 + Math.cos(t * 0.26) * 0.3;
-    const rotZ = t * 0.12 + Math.sin(t * 0.22) * 0.25;
+    const rotY =
+      t * 0.18 +
+      Math.sin(t * 0.32) * 0.35 +
+      pointerX * 0.85 * interactionStrength;
+    const rotX =
+      t * 0.14 +
+      Math.cos(t * 0.26) * 0.3 +
+      pointerY * 0.65 * interactionStrength;
+    const rotZ =
+      t * 0.12 +
+      Math.sin(t * 0.22) * 0.25 +
+      (pointerX - pointerY) * 0.32 * interactionStrength;
 
     const cosY = Math.cos(rotY);
     const sinY = Math.sin(rotY);
@@ -493,6 +551,51 @@ function showError(msg) {
   resize();
   buildScene();
   refreshThemeColors();
+
+  if (window.PointerEvent) {
+    window.addEventListener(
+      "pointermove",
+      (event) => setPointerFromClient(event.clientX, event.clientY),
+      { passive: true }
+    );
+    window.addEventListener(
+      "pointerdown",
+      (event) => setPointerFromClient(event.clientX, event.clientY),
+      { passive: true }
+    );
+    window.addEventListener("pointerup", releasePointer, { passive: true });
+    window.addEventListener("pointercancel", releasePointer, { passive: true });
+  } else {
+    window.addEventListener(
+      "mousemove",
+      (event) => setPointerFromClient(event.clientX, event.clientY),
+      { passive: true }
+    );
+    window.addEventListener(
+      "touchstart",
+      (event) => {
+        const touch = event.touches && event.touches[0];
+        if (touch) setPointerFromClient(touch.clientX, touch.clientY);
+      },
+      { passive: true }
+    );
+    window.addEventListener(
+      "touchmove",
+      (event) => {
+        const touch = event.touches && event.touches[0];
+        if (touch) setPointerFromClient(touch.clientX, touch.clientY);
+      },
+      { passive: true }
+    );
+    window.addEventListener("touchend", releasePointer, { passive: true });
+    window.addEventListener("touchcancel", releasePointer, { passive: true });
+  }
+
+  document.addEventListener("mouseleave", releasePointer, { passive: true });
+  window.addEventListener("blur", releasePointer);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") releasePointer();
+  });
 
   window.addEventListener("resize", () => {
     resize();
