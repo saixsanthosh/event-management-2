@@ -347,6 +347,7 @@ function showError(msg) {
     targetY: 0.5
   };
   let pointerActive = false;
+  let pointerType = "mouse";
   let lastPointerInputAt = 0;
   const interactionFadeMs = 2200;
 
@@ -354,13 +355,14 @@ function showError(msg) {
     return Math.min(max, Math.max(min, value));
   }
 
-  function setPointerFromClient(clientX, clientY) {
+  function setPointerFromClient(clientX, clientY, inputType = "mouse") {
     const rect = container.getBoundingClientRect();
     const nextX = (clientX - rect.left) / Math.max(1, rect.width);
     const nextY = (clientY - rect.top) / Math.max(1, rect.height);
     pointer.targetX = clamp(nextX, 0, 1);
     pointer.targetY = clamp(nextY, 0, 1);
     pointerActive = true;
+    pointerType = inputType || "mouse";
     lastPointerInputAt = performance.now();
   }
 
@@ -456,48 +458,55 @@ function showError(msg) {
     ctx.clearRect(0, 0, width, height);
 
     const t = time * 0.001;
+    const isTouchInput = pointerType === "touch";
+    const followLerp = isTouchInput ? 0.065 : 0.08;
+    const returnLerp = isTouchInput ? 0.025 : 0.035;
+    const sensitivity = isTouchInput ? 0.55 : 0.92;
     const inactiveFor = performance.now() - lastPointerInputAt;
     const interactionStrength = pointerActive
       ? 1
       : clamp(1 - inactiveFor / interactionFadeMs, 0, 1);
+    const scaledStrength = interactionStrength * sensitivity;
 
     if (!pointerActive) {
-      pointer.targetX += (0.5 - pointer.targetX) * 0.04;
-      pointer.targetY += (0.5 - pointer.targetY) * 0.04;
+      pointer.targetX += (0.5 - pointer.targetX) * returnLerp;
+      pointer.targetY += (0.5 - pointer.targetY) * returnLerp;
     }
 
-    pointer.x += (pointer.targetX - pointer.x) * 0.12;
-    pointer.y += (pointer.targetY - pointer.y) * 0.12;
+    pointer.x += (pointer.targetX - pointer.x) * followLerp;
+    pointer.y += (pointer.targetY - pointer.y) * followLerp;
 
     const pointerX = (pointer.x - 0.5) * 2;
     const pointerY = (pointer.y - 0.5) * 2;
-    // Invert mapping so globe movement follows pointer/touch direction naturally.
-    const interactionX = -pointerX;
-    const interactionY = -pointerY;
+    // Cursor/touch follow uses direct mapping; tilt uses opposite sign for natural depth.
+    const followX = pointerX;
+    const followY = pointerY;
+    const tiltX = -pointerX;
+    const tiltY = -pointerY;
 
     if (!themeColors) refreshThemeColors();
 
     const cx =
       width * 0.5 +
       Math.sin(t * 0.18) * width * 0.04 +
-      interactionX * width * 0.08 * interactionStrength;
+      followX * width * 0.065 * scaledStrength;
     const cy =
       height * 0.52 +
       Math.cos(t * 0.15) * height * 0.03 +
-      interactionY * height * 0.06 * interactionStrength;
+      followY * height * 0.05 * scaledStrength;
     const radius = Math.min(width, height) * 1.8;
     const rotY =
       t * 0.18 +
       Math.sin(t * 0.32) * 0.35 +
-      interactionX * 0.85 * interactionStrength;
+      tiltX * 0.52 * scaledStrength;
     const rotX =
       t * 0.14 +
       Math.cos(t * 0.26) * 0.3 +
-      interactionY * 0.65 * interactionStrength;
+      tiltY * 0.42 * scaledStrength;
     const rotZ =
       t * 0.12 +
       Math.sin(t * 0.22) * 0.25 +
-      (interactionX - interactionY) * 0.32 * interactionStrength;
+      (tiltX - tiltY) * 0.16 * scaledStrength;
 
     const cosY = Math.cos(rotY);
     const sinY = Math.sin(rotY);
@@ -558,12 +567,12 @@ function showError(msg) {
   if (window.PointerEvent) {
     window.addEventListener(
       "pointermove",
-      (event) => setPointerFromClient(event.clientX, event.clientY),
+      (event) => setPointerFromClient(event.clientX, event.clientY, event.pointerType || "mouse"),
       { passive: true }
     );
     window.addEventListener(
       "pointerdown",
-      (event) => setPointerFromClient(event.clientX, event.clientY),
+      (event) => setPointerFromClient(event.clientX, event.clientY, event.pointerType || "mouse"),
       { passive: true }
     );
     window.addEventListener("pointerup", releasePointer, { passive: true });
@@ -571,14 +580,14 @@ function showError(msg) {
   } else {
     window.addEventListener(
       "mousemove",
-      (event) => setPointerFromClient(event.clientX, event.clientY),
+      (event) => setPointerFromClient(event.clientX, event.clientY, "mouse"),
       { passive: true }
     );
     window.addEventListener(
       "touchstart",
       (event) => {
         const touch = event.touches && event.touches[0];
-        if (touch) setPointerFromClient(touch.clientX, touch.clientY);
+        if (touch) setPointerFromClient(touch.clientX, touch.clientY, "touch");
       },
       { passive: true }
     );
@@ -586,7 +595,7 @@ function showError(msg) {
       "touchmove",
       (event) => {
         const touch = event.touches && event.touches[0];
-        if (touch) setPointerFromClient(touch.clientX, touch.clientY);
+        if (touch) setPointerFromClient(touch.clientX, touch.clientY, "touch");
       },
       { passive: true }
     );
