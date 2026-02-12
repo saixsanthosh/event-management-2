@@ -83,6 +83,38 @@ if (user.role !== "Coordinator") {
                     <p id="assignedSubEventLabel">Loading...</p>
                 </div>
 
+                <div style="border:2px dashed var(--border-color);padding:18px;border-radius:16px;margin-bottom:20px;background:var(--input-bg)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+                        <div style="font-size:1rem;color:var(--text-primary);font-weight:600">
+                            Event Results
+                        </div>
+                        <div id="resultEventStatus" style="font-size:0.82rem;color:var(--text-secondary);border:1px solid var(--border-color);padding:6px 10px;border-radius:999px">
+                            Status: -
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:12px;margin-bottom:12px">
+                        <div class="input-group" style="margin-bottom:0">
+                            <input id="winnerInput" placeholder="Winner" />
+                        </div>
+                        <div class="input-group" style="margin-bottom:0">
+                            <input id="runnerUpInput" placeholder="Runner-up" />
+                        </div>
+                        <div class="input-group" style="margin-bottom:0">
+                            <input id="thirdPlaceInput" placeholder="Third Place" />
+                        </div>
+                    </div>
+
+                    <p id="resultHint" style="color:var(--text-muted);font-size:0.82rem;margin:0 0 12px 0">
+                        Results can be updated only when event status is Completed.
+                    </p>
+
+                    <button class="login-btn" id="saveResultsBtn" style="width:auto;padding:12px 18px">
+                        <i class="fas fa-trophy"></i>
+                        <span>Save Results</span>
+                    </button>
+                </div>
+
                 <!-- TABLE -->
                 <div style="overflow-x:auto;max-height:320px;overflow-y:auto;padding-right:6px">
                     <table style="width:100%;border-collapse:collapse;color:var(--text-primary)">
@@ -116,10 +148,102 @@ if (user.role !== "Coordinator") {
 
   const labelEl = document.getElementById("assignedSubEventLabel");
   const listEl = document.getElementById("studentList");
+  const statusEl = document.getElementById("resultEventStatus");
+  const hintEl = document.getElementById("resultHint");
+  const winnerInput = document.getElementById("winnerInput");
+  const runnerUpInput = document.getElementById("runnerUpInput");
+  const thirdPlaceInput = document.getElementById("thirdPlaceInput");
+  const saveResultsBtn = document.getElementById("saveResultsBtn");
+  let currentEvent = null;
 
-  async function fetchJSON(url) {
-      const res = await fetch(url);
-      return res.json();
+  async function fetchJSON(url, options = {}) {
+      const res = await fetch(url, options);
+      const data = await res.json();
+      if (!res.ok) {
+          throw new Error(data && data.message ? data.message : `Request failed (${res.status})`);
+      }
+      return data;
+  }
+
+  function getToken() {
+      return localStorage.getItem("token");
+  }
+
+  function setResultEditorState(event) {
+      currentEvent = event || null;
+      const status = event && event.status ? event.status : "Unknown";
+      statusEl.textContent = `Status: ${status}`;
+
+      const isCompleted = status === "Completed";
+      const results = event && event.results && typeof event.results === "object" ? event.results : {};
+
+      winnerInput.value = results.winner || "";
+      runnerUpInput.value = results.runnerUp || "";
+      thirdPlaceInput.value = results.thirdPlace || "";
+
+      [winnerInput, runnerUpInput, thirdPlaceInput, saveResultsBtn].forEach((el) => {
+          if (!el) return;
+          el.disabled = !isCompleted;
+      });
+
+      if (isCompleted) {
+          hintEl.textContent = "Add or update Winner, Runner-up, and Third Place, then save.";
+      } else if (status === "Unknown") {
+          hintEl.textContent = "Select a sub-event to load the parent event.";
+      } else {
+          hintEl.textContent = "Results can be updated only when event status is Completed.";
+      }
+  }
+
+  async function saveEventResults() {
+      if (!currentEvent || !currentEvent.id) {
+          alert("No event selected");
+          return;
+      }
+
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+
+      try {
+          // Refresh event status before save to avoid stale Completed checks.
+          const latest = await fetchJSON(`${API_BASE}/api/events/${currentEvent.id}`);
+          setResultEditorState(latest);
+          if (!latest || latest.status !== "Completed") {
+              alert("Event must be Completed before updating results.");
+              return;
+          }
+
+          const payload = {
+              winner: winnerInput.value.trim(),
+              runnerUp: runnerUpInput.value.trim(),
+              thirdPlace: thirdPlaceInput.value.trim()
+          };
+          if (!payload.winner && !payload.runnerUp && !payload.thirdPlace) {
+              alert("Enter at least one result");
+              return;
+          }
+
+          const data = await fetchJSON(`${API_BASE}/api/events/${currentEvent.id}/results`, {
+              method: "PUT",
+              headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify(payload)
+          });
+          if (data.success) {
+              setResultEditorState(data.event || latest);
+              alert("Results updated");
+          } else {
+              alert(data.message || "Failed to update results");
+          }
+      } catch (err) {
+          console.error(err);
+          alert(err.message || "Failed to update results");
+      }
   }
 
   async function pickSubEventId() {
@@ -169,6 +293,7 @@ if (user.role !== "Coordinator") {
       const subEventId = await pickSubEventId();
       if (!subEventId) {
           labelEl.textContent = "No sub-event selected";
+          setResultEditorState(null);
           return;
       }
 
@@ -178,6 +303,7 @@ if (user.role !== "Coordinator") {
       const event = eventMap.get(subEvent.eventId);
 
       labelEl.textContent = `${subEvent.name} — ${event ? event.name : "Event"}`;
+      setResultEditorState(event || null);
 
       const registrations = await fetchJSON(`${API_BASE}/api/registrations/${subEventId}`);
       renderStudents(registrations);
@@ -214,6 +340,13 @@ if (user.role !== "Coordinator") {
       });
   }
 
+  if (saveResultsBtn) {
+      saveResultsBtn.addEventListener("click", async () => {
+          await saveEventResults();
+      });
+  }
+
+  setResultEditorState(null);
   document.addEventListener("DOMContentLoaded", loadAssignedSubEvent);
 </script>
 

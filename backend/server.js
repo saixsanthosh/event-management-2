@@ -196,6 +196,37 @@ function ensureEventFields(event) {
     event.approvalHistory = [];
     changed = true;
   }
+  if (!event.results || typeof event.results !== "object") {
+    event.results = {
+      winner: "",
+      runnerUp: "",
+      thirdPlace: "",
+      updatedAt: null,
+      updatedBy: null
+    };
+    changed = true;
+  } else {
+    if (typeof event.results.winner !== "string") {
+      event.results.winner = sanitizeString(event.results.winner, 120);
+      changed = true;
+    }
+    if (typeof event.results.runnerUp !== "string") {
+      event.results.runnerUp = sanitizeString(event.results.runnerUp, 120);
+      changed = true;
+    }
+    if (typeof event.results.thirdPlace !== "string") {
+      event.results.thirdPlace = sanitizeString(event.results.thirdPlace, 120);
+      changed = true;
+    }
+    if (event.results.updatedAt !== null && typeof event.results.updatedAt !== "string") {
+      event.results.updatedAt = null;
+      changed = true;
+    }
+    if (event.results.updatedBy !== null && typeof event.results.updatedBy !== "string") {
+      event.results.updatedBy = null;
+      changed = true;
+    }
+  }
   return changed;
 }
 
@@ -336,7 +367,14 @@ app.post("/api/events", rateLimit(60), verifyToken, allowRoles("President"), (re
     posterPath: null,
     approvalStatus: "Draft",
     approvalStage: "President",
-    approvalHistory: []
+    approvalHistory: [],
+    results: {
+      winner: "",
+      runnerUp: "",
+      thirdPlace: "",
+      updatedAt: null,
+      updatedBy: null
+    }
   };
 
   events.push(newEvent);
@@ -420,6 +458,53 @@ app.put("/api/events/:id", rateLimit(60), verifyToken, allowRoles("President"), 
     details: `Event ${event.id}: ${event.name}`
   });
   res.json({ success: true, event });
+});
+
+/* =========================
+   UPDATE EVENT RESULTS (Coordinator/President)
+========================= */
+app.put("/api/events/:id/results", rateLimit(60), verifyToken, allowRoles("Coordinator", "President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid event id" });
+
+  const events = store.getEvents();
+  const event = events.find(e => e.id === id);
+  if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+  ensureEventFields(event);
+
+  const status = sanitizeString(event.status, 20) || "Upcoming";
+  if (status !== "Completed") {
+    return res.json({
+      success: false,
+      message: "Results can be updated only after event status is Completed"
+    });
+  }
+
+  const winner = sanitizeString(req.body.winner, 120);
+  const runnerUp = sanitizeString(req.body.runnerUp, 120);
+  const thirdPlace = sanitizeString(req.body.thirdPlace, 120);
+
+  if (!winner && !runnerUp && !thirdPlace) {
+    return res.json({ success: false, message: "Enter at least one result field" });
+  }
+
+  event.results = {
+    winner,
+    runnerUp,
+    thirdPlace,
+    updatedAt: new Date().toISOString(),
+    updatedBy: `${req.user.role}#${req.user.id}`
+  };
+
+  store.saveEvents(events);
+  logAudit({
+    action: "Update Event Results",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Event ${event.id}: ${event.name}`
+  });
+
+  res.json({ success: true, results: event.results, event });
 });
 
 /* =========================

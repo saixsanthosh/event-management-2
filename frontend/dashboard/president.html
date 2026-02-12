@@ -204,6 +204,17 @@ if (user.role !== "President") {
           </div>
         </div>
 
+        <div class="form-header">
+          <h2>Event Overview</h2>
+          <p>Status and published results</p>
+        </div>
+
+        <div id="eventsOverviewList" style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-bottom:30px">
+          <div class="input-group">
+            <input disabled value="Loading events...">
+          </div>
+        </div>
+
         <!-- APPROVAL FLOW -->
         <div class="form-header">
           <h2>Approval Workflow</h2>
@@ -267,6 +278,7 @@ const eventCountEl = document.getElementById("eventCount");
 const subEventCountEl = document.getElementById("subEventCount");
 const registrationCountEl = document.getElementById("registrationCount");
 const pendingAppsCountEl = document.getElementById("pendingAppsCount");
+const eventsOverviewListEl = document.getElementById("eventsOverviewList");
 const sendApprovalBtn = document.getElementById("sendApprovalBtn");
 const setFeeBtn = document.getElementById("setFeeBtn");
 const paymentRequestsEl = document.getElementById("paymentRequests");
@@ -363,10 +375,37 @@ async function fetchJSON(url) {
   return res.json();
 }
 
+function renderEventOverview(events) {
+  if (!eventsOverviewListEl) return;
+  if (!Array.isArray(events) || events.length === 0) {
+    eventsOverviewListEl.innerHTML = `
+      <div class="input-group">
+        <input disabled value="No events found">
+      </div>
+    `;
+    return;
+  }
+
+  const ordered = [...events].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  eventsOverviewListEl.innerHTML = "";
+  ordered.forEach((event) => {
+    let item;
+    if (window.createReadOnlyEventItem) {
+      item = window.createReadOnlyEventItem(event);
+    } else {
+      item = document.createElement("div");
+      item.className = "input-group";
+      item.innerHTML = `<input disabled value="${event.name} - ${event.status || "Upcoming"}">`;
+    }
+    eventsOverviewListEl.appendChild(item);
+  });
+}
+
 async function loadSummary() {
   try {
     const events = await fetchJSON(`${API_BASE}/api/events`);
     const eventList = Array.isArray(events) ? events : [];
+    renderEventOverview(eventList);
 
     const subEventLists = await Promise.all(
       eventList.map(e => fetchJSON(`${API_BASE}/api/subevents/${e.id}`))

@@ -294,10 +294,15 @@ if (user.role !== "Faculty") {
           // Render events list (read-only)
           eventsListEl.innerHTML = "";
           events.forEach(event => {
-              const item = document.createElement("div");
-              item.className = "input-group";
-              const status = event.status ? event.status : "Upcoming";
-              item.innerHTML = `<input disabled value="${event.name} – ${status}">`;
+              let item;
+              if (window.createReadOnlyEventItem) {
+                  item = window.createReadOnlyEventItem(event);
+              } else {
+                  item = document.createElement("div");
+                  item.className = "input-group";
+                  const status = event.status ? event.status : "Upcoming";
+                  item.innerHTML = `<input disabled value="${event.name} – ${status}">`;
+              }
               eventsListEl.appendChild(item);
           });
 

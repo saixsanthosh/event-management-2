@@ -204,6 +204,203 @@ if (!window.uiConfirm) {
 }
 
 /* =========================
+   EVENT RESULT HELPERS
+========================= */
+if (!window.getEventResults) {
+  window.getEventResults = function getEventResults(event) {
+    const source = event && typeof event.results === "object" ? event.results : {};
+    const winner = String(source.winner || "").trim();
+    const runnerUp = String(source.runnerUp || "").trim();
+    const thirdPlace = String(source.thirdPlace || "").trim();
+    const updatedAt = String(source.updatedAt || "").trim();
+    const updatedBy = String(source.updatedBy || "").trim();
+    return { winner, runnerUp, thirdPlace, updatedAt, updatedBy };
+  };
+}
+
+if (!window.hasEventResults) {
+  window.hasEventResults = function hasEventResults(event) {
+    const results = window.getEventResults(event);
+    const status = String((event && event.status) || "");
+    return status === "Completed" && Boolean(results.winner || results.runnerUp || results.thirdPlace);
+  };
+}
+
+if (!window.showEventDetailsModal) {
+  window.showEventDetailsModal = function showEventDetailsModal(event) {
+    const esc = (value) =>
+      String(value || "").replace(/[&<>"']/g, (ch) => {
+        const map = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          "\"": "&quot;",
+          "'": "&#39;"
+        };
+        return map[ch] || ch;
+      });
+    const safeEvent = event || {};
+    const status = String(safeEvent.status || "Upcoming");
+    const date = String(safeEvent.date || "Not set");
+    const description = String(safeEvent.description || "No description");
+    const results = window.getEventResults(safeEvent);
+    const hasResults = window.hasEventResults(safeEvent);
+    const isCompleted = status === "Completed";
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+
+    const card = document.createElement("div");
+    card.className = "modal-card";
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-modal", "true");
+    card.style.width = "min(94vw, 560px)";
+    card.style.textTransform = "none";
+
+    const title = document.createElement("div");
+    title.className = "modal-title";
+    title.textContent = safeEvent.name || "Event";
+
+    const message = document.createElement("div");
+    message.className = "modal-message";
+    message.style.marginBottom = "12px";
+    message.innerHTML = `<strong>Status:</strong> ${esc(status)}<br><strong>Date:</strong> ${esc(date)}`;
+
+    const desc = document.createElement("div");
+    desc.style.border = "1px solid var(--border-color)";
+    desc.style.borderRadius = "12px";
+    desc.style.padding = "12px";
+    desc.style.background = "var(--input-bg)";
+    desc.style.color = "var(--text-secondary)";
+    desc.style.marginBottom = "12px";
+    desc.style.lineHeight = "1.35";
+    desc.textContent = description;
+
+    const resultBox = document.createElement("div");
+    resultBox.style.border = "1px dashed var(--border-color)";
+    resultBox.style.borderRadius = "12px";
+    resultBox.style.padding = "12px";
+    resultBox.style.background = "var(--input-bg)";
+    resultBox.style.color = "var(--text-primary)";
+    resultBox.style.marginBottom = "14px";
+
+    if (isCompleted && hasResults) {
+      resultBox.innerHTML = `
+        <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:8px">Published Results</div>
+        <div style="display:grid;gap:6px;font-size:0.95rem">
+          <div><strong>Winner:</strong> ${esc(results.winner || "Not set")}</div>
+          <div><strong>Runner-up:</strong> ${esc(results.runnerUp || "Not set")}</div>
+          <div><strong>Third Place:</strong> ${esc(results.thirdPlace || "Not set")}</div>
+        </div>
+      `;
+      if (results.updatedAt || results.updatedBy) {
+        const meta = document.createElement("div");
+        meta.style.marginTop = "8px";
+        meta.style.fontSize = "0.78rem";
+        meta.style.color = "var(--text-muted)";
+        meta.textContent = `Updated: ${results.updatedAt || "-"}${results.updatedBy ? ` by ${results.updatedBy}` : ""}`;
+        resultBox.appendChild(meta);
+      }
+    } else if (isCompleted) {
+      resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">Event is completed, but results are not published yet.</div>`;
+    } else {
+      resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">Results will be available after the event is marked Completed.</div>`;
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "modal-actions";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "login-btn";
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+    actions.appendChild(closeBtn);
+
+    card.appendChild(title);
+    card.appendChild(message);
+    card.appendChild(desc);
+    card.appendChild(resultBox);
+    card.appendChild(actions);
+    backdrop.appendChild(card);
+    document.body.appendChild(backdrop);
+
+    const cleanup = () => backdrop.remove();
+    closeBtn.addEventListener("click", cleanup);
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) cleanup();
+    });
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape") cleanup();
+      },
+      { once: true }
+    );
+  };
+}
+
+if (!window.createReadOnlyEventItem) {
+  window.createReadOnlyEventItem = function createReadOnlyEventItem(event) {
+    const item = document.createElement("div");
+    item.style.display = "flex";
+    item.style.alignItems = "stretch";
+    item.style.gap = "10px";
+
+    const field = document.createElement("input");
+    field.disabled = true;
+    field.value = `${event.name || "Event"} - ${event.status || "Upcoming"}`;
+    field.style.flex = "1";
+    field.style.padding = "16px 14px";
+    field.style.minHeight = "54px";
+    field.style.fontSize = "0.95rem";
+    field.style.border = "1px solid var(--border-color)";
+    field.style.borderRadius = "14px";
+    field.style.background = "var(--input-bg)";
+    field.style.color = "var(--text-primary)";
+    item.appendChild(field);
+
+    function makeIconButton(icon, title, colorA, colorB, onClick) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.title = title;
+      btn.setAttribute("aria-label", title);
+      btn.innerHTML = `<i class="${icon}"></i>`;
+      btn.style.width = "54px";
+      btn.style.minWidth = "54px";
+      btn.style.borderRadius = "14px";
+      btn.style.border = "1px solid var(--border-color)";
+      btn.style.background = `linear-gradient(135deg, ${colorA}, ${colorB})`;
+      btn.style.color = "var(--text-primary)";
+      btn.style.boxShadow = "0 10px 20px rgba(6,4,18,0.45)";
+      btn.style.cursor = "pointer";
+      btn.addEventListener("click", onClick);
+      return btn;
+    }
+
+    const infoBtn = makeIconButton(
+      "fas fa-circle-info",
+      "View event details",
+      "rgba(99,102,241,0.45)",
+      "rgba(49,46,129,0.85)",
+      () => window.showEventDetailsModal(event)
+    );
+    item.appendChild(infoBtn);
+
+    if (window.hasEventResults(event)) {
+      const trophyBtn = makeIconButton(
+        "fas fa-trophy",
+        "View published results",
+        "rgba(245,158,11,0.45)",
+        "rgba(146,64,14,0.9)",
+        () => window.showEventDetailsModal(event)
+      );
+      item.appendChild(trophyBtn);
+    }
+
+    return item;
+  };
+}
+
+/* =========================
    DASHBOARD MAP
 ========================= */
 const dashboardMap = {
