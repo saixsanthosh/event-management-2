@@ -177,9 +177,12 @@ if (user.role !== "Coordinator") {
       const isCompleted = status === "Completed";
       const results = event && event.results && typeof event.results === "object" ? event.results : {};
 
-      winnerInput.value = results.winner || "";
-      runnerUpInput.value = results.runnerUp || "";
-      thirdPlaceInput.value = results.thirdPlace || "";
+      winnerInput.value = "";
+      runnerUpInput.value = "";
+      thirdPlaceInput.value = "";
+      winnerInput.placeholder = results.winner ? `Current: ${results.winner}` : "Winner";
+      runnerUpInput.placeholder = results.runnerUp ? `Current: ${results.runnerUp}` : "Runner-up";
+      thirdPlaceInput.placeholder = results.thirdPlace ? `Current: ${results.thirdPlace}` : "Third Place";
 
       [winnerInput, runnerUpInput, thirdPlaceInput, saveResultsBtn].forEach((el) => {
           if (!el) return;
@@ -207,19 +210,27 @@ if (user.role !== "Coordinator") {
           return;
       }
 
+      const draft = {
+          winner: winnerInput.value.trim(),
+          runnerUp: runnerUpInput.value.trim(),
+          thirdPlace: thirdPlaceInput.value.trim()
+      };
+
       try {
           // Refresh event status before save to avoid stale Completed checks.
           const latest = await fetchJSON(`${API_BASE}/api/events/${currentEvent.id}`);
-          setResultEditorState(latest);
+          currentEvent = latest || currentEvent;
+          statusEl.textContent = `Status: ${currentEvent && currentEvent.status ? currentEvent.status : "Unknown"}`;
           if (!latest || latest.status !== "Completed") {
+              setResultEditorState(latest);
               alert("Event must be Completed before updating results.");
               return;
           }
 
           const payload = {
-              winner: winnerInput.value.trim(),
-              runnerUp: runnerUpInput.value.trim(),
-              thirdPlace: thirdPlaceInput.value.trim()
+              winner: draft.winner || ((latest.results && latest.results.winner) || ""),
+              runnerUp: draft.runnerUp || ((latest.results && latest.results.runnerUp) || ""),
+              thirdPlace: draft.thirdPlace || ((latest.results && latest.results.thirdPlace) || "")
           };
           if (!payload.winner && !payload.runnerUp && !payload.thirdPlace) {
               alert("Enter at least one result");
@@ -236,6 +247,7 @@ if (user.role !== "Coordinator") {
           });
           if (data.success) {
               setResultEditorState(data.event || latest);
+              hintEl.textContent = "Results saved. Fields are cleared for the next update.";
               alert("Results updated");
           } else {
               alert(data.message || "Failed to update results");
