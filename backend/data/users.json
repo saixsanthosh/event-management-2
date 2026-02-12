@@ -2,7 +2,7 @@
   {
     "id": 1,
     "username": "president",
-    "password": "$2b$10$c/oKuDU68eKlP9EM5/nLte7nn857c5gEWvh1H9FiKvRHENSf31cwW",
+    "password": "$2b$10$TE9hLc/F6AIW4i9YPWHZAOTRjvKlsXBcjmBMHCnVzhrPmTSBbxRoG",
     "role": "President",
     "failedLoginAttempts": 0,
     "lockUntil": null
@@ -10,7 +10,7 @@
   {
     "id": 2,
     "username": "faculty",
-    "password": "$2b$10$SujWxhqQDTTbRjYD82dHBuyztohl2B6BnLecdFpFmThgvVNx1MQzu",
+    "password": "$2b$10$Hfdy6c6gbf5adYZbLo7U9OxlFC.3lGa0eJfETwQOmnrtouAuCS9G2",
     "role": "Faculty",
     "failedLoginAttempts": 0,
     "lockUntil": null
@@ -18,7 +18,7 @@
   {
     "id": 3,
     "username": "hod",
-    "password": "$2b$10$ZXb/XuAK3a96cdChfl6mm.bFlF3e0fnUO0uZDn96XS7OydQigWLwq",
+    "password": "$2b$10$sVEGbPQcNFiV2FrwF.LXuOEP3TxJGBzY9b4E3oovL4Df0dz1U6s6W",
     "role": "HOD",
     "failedLoginAttempts": 0,
     "lockUntil": null
@@ -26,7 +26,7 @@
   {
     "id": 4,
     "username": "vp",
-    "password": "$2b$10$G.sCQHs2CPTj1ZxUqJTAMOr3PJfTtEgC/8hSNqaM5HK36J1.w2E62",
+    "password": "$2b$10$.RAV.wIlKexI7BkMuZkLee/Enq4NeZLB4xf74qch1mlS.y9dXuhB6",
     "role": "VP",
     "failedLoginAttempts": 0,
     "lockUntil": null
@@ -34,7 +34,7 @@
   {
     "id": 5,
     "username": "dean",
-    "password": "$2b$10$wy0KE5N2bn8/tn3FAgROLeHEelwkDcsQJW81OdnMqdYOQ5EM1QnrK",
+    "password": "$2b$10$8U9m5HJNaTaoCKbBWB2I7e4u65VSoPSOgoHvmExxgKOcNiMeFiM0a",
     "role": "Dean",
     "failedLoginAttempts": 0,
     "lockUntil": null
@@ -42,13 +42,45 @@
   {
     "id": 6,
     "username": "coordinator",
-    "password": "$2b$10$wu7Izv8TFymJyI4j4Rw3cu4T0DEwrOe.3MxoHnwydOsit9uNhmIri",
+    "password": "$2b$10$BOEdmQdPolVruGGcioRbDO.KJK5DPrPfWzrLpBHx36mJ42QJoWYJ6",
     "role": "Coordinator"
   },
   {
     "id": 7,
     "username": "volunteer",
-    "password": "$2b$10$Z0NPDXIcEJxbI47DWulXnuihVPFiixLgGg.MbM.Wh1Tsp982wfoou",
+    "password": "$2b$10$cYIjNZXriueVMVB3PIVpc.BipuTQxkP60hTKY./SBlovDd1hLKWCK",
     "role": "Volunteer"
+  },
+  {
+    "id": 8,
+    "username": "coord-6-1101",
+    "password": "$2b$10$R5HCuFuNRMI3FsZeODfPi..6SlV/cx.lsWroitrbWMsd53GgW/e7e",
+    "role": "Coordinator",
+    "subEventId": 6,
+    "createdAt": "2026-02-09T15:38:12.425Z"
+  },
+  {
+    "id": 9,
+    "username": "vol-6-2101",
+    "password": "$2b$10$E4I4Nbk1elOaNRHouEWw1u..iKvXAljH8IqyUN6m7Qeuzph4WHsVe",
+    "role": "Volunteer",
+    "subEventId": 6,
+    "createdAt": "2026-02-09T17:38:12.425Z"
+  },
+  {
+    "id": 10,
+    "username": "vol-7-2102",
+    "password": "$2b$10$pqLf6SMhcD5rYOW9yDy5lu3PQBz51dPv4m25TxSawBwVQiER/bak2",
+    "role": "Volunteer",
+    "subEventId": 7,
+    "createdAt": "2026-02-09T17:38:12.425Z"
+  },
+  {
+    "id": 11,
+    "username": "vol-8-2103",
+    "password": "$2b$10$0UiNI5kmK5o7jfeSHisqCux.zzWMqeBy9jQ6BOUZscIdnjzRbDtuq",
+    "role": "Volunteer",
+    "subEventId": 8,
+    "createdAt": "2026-02-09T17:38:12.425Z"
   }
 ]

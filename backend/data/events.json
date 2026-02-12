@@ -1,1 +1,51 @@
-[]
+[
+  {
+    "id": 3,
+    "name": "TechFusion Fest 2026",
+    "description": "Inter-department innovation and coding showcase",
+    "date": "2026-03-20",
+    "status": "Completed",
+    "posterPath": null,
+    "approvalStatus": "Approved",
+    "approvalStage": "Approved",
+    "approvalHistory": [
+      {
+        "by": "President",
+        "action": "Sent for Approval",
+        "note": "",
+        "at": "2026-02-08T15:38:12.425Z"
+      },
+      {
+        "by": "Faculty",
+        "action": "Approved",
+        "note": "",
+        "at": "2026-02-08T21:38:12.425Z"
+      },
+      {
+        "by": "HOD",
+        "action": "Approved",
+        "note": "",
+        "at": "2026-02-09T03:38:12.425Z"
+      },
+      {
+        "by": "VP",
+        "action": "Approved",
+        "note": "",
+        "at": "2026-02-09T07:38:12.425Z"
+      },
+      {
+        "by": "Dean",
+        "action": "Approved",
+        "note": "",
+        "at": "2026-02-09T11:38:12.425Z"
+      }
+    ],
+    "results": {
+      "winner": "Arjun Nair",
+      "runnerUp": "Meera Joseph",
+      "thirdPlace": "Ravi Krishnan",
+      "updatedAt": "2026-02-11T15:38:12.425Z",
+      "updatedBy": "Coordinator#8"
+    }
+  }
+]

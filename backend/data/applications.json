@@ -1,1 +1,46 @@
-[]
+[
+  {
+    "id": 1,
+    "name": "Akhil Thomas",
+    "email": "akhil.coord@example.com",
+    "role": "Coordinator",
+    "subEventId": 6,
+    "status": "Approved",
+    "generatedUsername": "coord-6-1101",
+    "generatedPassword": "Coord@2026",
+    "assignedUserId": 8
+  },
+  {
+    "id": 2,
+    "name": "Nisha Paul",
+    "email": "nisha.vol@example.com",
+    "role": "Volunteer",
+    "subEventId": 6,
+    "status": "Approved",
+    "generatedUsername": "vol-6-2101",
+    "generatedPassword": "VolA@2026",
+    "assignedUserId": 9
+  },
+  {
+    "id": 3,
+    "name": "Rahul Das",
+    "email": "rahul.vol@example.com",
+    "role": "Volunteer",
+    "subEventId": 7,
+    "status": "Approved",
+    "generatedUsername": "vol-7-2102",
+    "generatedPassword": "VolB@2026",
+    "assignedUserId": 10
+  },
+  {
+    "id": 4,
+    "name": "Sneha Menon",
+    "email": "sneha.vol@example.com",
+    "role": "Volunteer",
+    "subEventId": 8,
+    "status": "Approved",
+    "generatedUsername": "vol-8-2103",
+    "generatedPassword": "VolC@2026",
+    "assignedUserId": 11
+  }
+]

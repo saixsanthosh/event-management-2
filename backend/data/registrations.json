@@ -1,1 +1,98 @@
-[]
+[
+  {
+    "id": 1,
+    "name": "Arjun Nair",
+    "college": "SRM Institute",
+    "department": "CSE",
+    "email": "arjun.nair@example.com",
+    "mobile": "9876543201",
+    "subEventId": 6,
+    "transactionId": "TXN-AI-1001",
+    "paymentStatus": "Paid",
+    "attendance": true
+  },
+  {
+    "id": 2,
+    "name": "Meera Joseph",
+    "college": "Model Engineering College",
+    "department": "AI & DS",
+    "email": "meera.joseph@example.com",
+    "mobile": "9876543202",
+    "subEventId": 6,
+    "transactionId": "TXN-AI-1002",
+    "paymentStatus": "Paid",
+    "attendance": true
+  },
+  {
+    "id": 3,
+    "name": "Ravi Krishnan",
+    "college": "CUSAT",
+    "department": "ECE",
+    "email": "ravi.krishnan@example.com",
+    "mobile": "9876543203",
+    "subEventId": 6,
+    "transactionId": "TXN-AI-1003",
+    "paymentStatus": "Paid",
+    "attendance": true
+  },
+  {
+    "id": 4,
+    "name": "Neha Varma",
+    "college": "NIT Calicut",
+    "department": "CSE",
+    "email": "neha.varma@example.com",
+    "mobile": "9876543204",
+    "subEventId": 7,
+    "transactionId": "TXN-ROB-2001",
+    "paymentStatus": "Paid",
+    "attendance": true
+  },
+  {
+    "id": 5,
+    "name": "Aditya Roy",
+    "college": "IIT Palakkad",
+    "department": "ME",
+    "email": "aditya.roy@example.com",
+    "mobile": "9876543205",
+    "subEventId": 7,
+    "transactionId": "TXN-ROB-2002",
+    "paymentStatus": "Paid",
+    "attendance": false
+  },
+  {
+    "id": 6,
+    "name": "Farah Khan",
+    "college": "Amrita University",
+    "department": "MBA",
+    "email": "farah.khan@example.com",
+    "mobile": "9876543206",
+    "subEventId": 8,
+    "transactionId": "TXN-PITCH-3001",
+    "paymentStatus": "Pending",
+    "attendance": false
+  },
+  {
+    "id": 7,
+    "name": "Kevin Mathew",
+    "college": "Rajagiri School of Engg",
+    "department": "IT",
+    "email": "kevin.mathew@example.com",
+    "mobile": "9876543207",
+    "subEventId": 8,
+    "transactionId": "TXN-PITCH-3002",
+    "paymentStatus": "Paid",
+    "attendance": true
+  },
+  {
+    "id": 8,
+    "name": "Priya Iyer",
+    "college": "Government Engineering College",
+    "department": "CSE",
+    "email": "priya.iyer@example.com",
+    "mobile": "9876543208",
+    "subEventId": 8,
+    "transactionId": "TXN-PITCH-3003",
+    "paymentStatus": "Paid",
+    "attendance": true
+  }
+]
