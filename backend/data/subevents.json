@@ -31,5 +31,82 @@
     "date": "2026-03-20",
     "time": "03:00 PM",
     "venue": "Seminar Hall A"
+  },
+  {
+    "id": 9,
+    "eventId": 3,
+    "name": "Cyber Security CTF",
+    "coordinatorLimit": 1,
+    "volunteerLimit": 3,
+    "fee": 220,
+    "date": "2026-03-20",
+    "time": "09:30 AM",
+    "venue": "Cyber Block"
+  },
+  {
+    "id": 10,
+    "eventId": 3,
+    "name": "UI UX Design Challenge",
+    "coordinatorLimit": 1,
+    "volunteerLimit": 3,
+    "fee": 180,
+    "date": "2026-03-20",
+    "time": "11:15 AM",
+    "venue": "Design Studio"
+  },
+  {
+    "id": 11,
+    "eventId": 3,
+    "name": "Code Relay",
+    "coordinatorLimit": 1,
+    "volunteerLimit": 3,
+    "fee": 150,
+    "date": "2026-03-20",
+    "time": "01:00 PM",
+    "venue": "Lab 2"
+  },
+  {
+    "id": 12,
+    "eventId": 3,
+    "name": "Data Science Quiz",
+    "coordinatorLimit": 1,
+    "volunteerLimit": 3,
+    "fee": 120,
+    "date": "2026-03-20",
+    "time": "02:00 PM",
+    "venue": "Seminar Hall B"
+  },
+  {
+    "id": 13,
+    "eventId": 3,
+    "name": "Drone Navigation",
+    "coordinatorLimit": 1,
+    "volunteerLimit": 3,
+    "fee": 280,
+    "date": "2026-03-20",
+    "time": "10:45 AM",
+    "venue": "Ground Arena"
+  },
+  {
+    "id": 14,
+    "eventId": 3,
+    "name": "Cloud Deployment Race",
+    "coordinatorLimit": 1,
+    "volunteerLimit": 3,
+    "fee": 260,
+    "date": "2026-03-20",
+    "time": "04:00 PM",
+    "venue": "Cloud Lab"
+  },
+  {
+    "id": 15,
+    "eventId": 3,
+    "name": "Startup Strategy Battle",
+    "coordinatorLimit": 1,
+    "volunteerLimit": 3,
+    "fee": 210,
+    "date": "2026-03-20",
+    "time": "05:00 PM",
+    "venue": "Auditorium Annex"
   }
 ]
