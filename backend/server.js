@@ -230,6 +230,42 @@ function ensureEventFields(event) {
   return changed;
 }
 
+function ensureSubEventFields(subEvent) {
+  let changed = false;
+  if (!subEvent.results || typeof subEvent.results !== "object") {
+    subEvent.results = {
+      winner: "",
+      runnerUp: "",
+      thirdPlace: "",
+      updatedAt: null,
+      updatedBy: null
+    };
+    changed = true;
+  } else {
+    if (typeof subEvent.results.winner !== "string") {
+      subEvent.results.winner = sanitizeString(subEvent.results.winner, 120);
+      changed = true;
+    }
+    if (typeof subEvent.results.runnerUp !== "string") {
+      subEvent.results.runnerUp = sanitizeString(subEvent.results.runnerUp, 120);
+      changed = true;
+    }
+    if (typeof subEvent.results.thirdPlace !== "string") {
+      subEvent.results.thirdPlace = sanitizeString(subEvent.results.thirdPlace, 120);
+      changed = true;
+    }
+    if (subEvent.results.updatedAt !== null && typeof subEvent.results.updatedAt !== "string") {
+      subEvent.results.updatedAt = null;
+      changed = true;
+    }
+    if (subEvent.results.updatedBy !== null && typeof subEvent.results.updatedBy !== "string") {
+      subEvent.results.updatedBy = null;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function getNextApprovalStage(currentStage) {
   const idx = APPROVAL_SEQUENCE.indexOf(currentStage);
   if (idx === -1) return null;
@@ -738,7 +774,14 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
     fee,
     date: date || "",
     time: time || "",
-    venue: venue || ""
+    venue: venue || "",
+    results: {
+      winner: "",
+      runnerUp: "",
+      thirdPlace: "",
+      updatedAt: null,
+      updatedBy: null
+    }
   };
 
   subEvents.push(newSubEvent);
@@ -758,7 +801,13 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
 app.get("/api/subevents/:eventId", (req, res) => {
   const eventId = toSafeInt(req.params.eventId);
   if (!eventId) return res.status(400).json({ success: false, message: "Invalid event id" });
-  const list = store.getSubEvents().filter(se => se.eventId === eventId);
+  const subEvents = store.getSubEvents();
+  let changed = false;
+  subEvents.forEach(se => {
+    if (ensureSubEventFields(se)) changed = true;
+  });
+  if (changed) store.saveSubEvents(subEvents);
+  const list = subEvents.filter(se => se.eventId === eventId);
   res.json(list);
 });
 
@@ -768,8 +817,12 @@ app.get("/api/subevents/:eventId", (req, res) => {
 app.get("/api/subevents/detail/:id", (req, res) => {
   const id = toSafeInt(req.params.id);
   if (!id) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
-  const subEvent = store.getSubEvents().find(se => se.id === id);
+  const subEvents = store.getSubEvents();
+  const subEvent = subEvents.find(se => se.id === id);
   if (!subEvent) return res.status(404).json({ success: false, message: "Sub-event not found" });
+  if (ensureSubEventFields(subEvent)) {
+    store.saveSubEvents(subEvents);
+  }
   res.json(subEvent);
 });
 
@@ -796,6 +849,7 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
   const subEvents = store.getSubEvents();
   const subEvent = subEvents.find(se => se.id === id);
   if (!subEvent) return res.status(404).json({ success: false, message: "Sub-event not found" });
+  ensureSubEventFields(subEvent);
 
   if (name !== undefined) subEvent.name = name;
   if (coordinatorLimit !== undefined) subEvent.coordinatorLimit = Number(coordinatorLimit);
@@ -816,6 +870,57 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
     details: `Sub-event ${subEvent.id}: ${subEvent.name}`
   });
   res.json({ success: true, subEvent });
+});
+
+/* =========================
+   UPDATE SUB-EVENT RESULTS (Coordinator/President)
+========================= */
+app.put("/api/subevents/:id/results", rateLimit(60), verifyToken, allowRoles("Coordinator", "President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
+
+  const subEvents = store.getSubEvents();
+  const subEvent = subEvents.find(se => se.id === id);
+  if (!subEvent) return res.status(404).json({ success: false, message: "Sub-event not found" });
+  ensureSubEventFields(subEvent);
+
+  const event = store.getEvents().find(e => e.id === subEvent.eventId);
+  if (!event) return res.status(404).json({ success: false, message: "Parent event not found" });
+  ensureEventFields(event);
+
+  const status = sanitizeString(event.status, 20) || "Upcoming";
+  if (status !== "Completed") {
+    return res.json({
+      success: false,
+      message: "Results can be updated only after event status is Completed"
+    });
+  }
+
+  const winner = sanitizeString(req.body.winner, 120);
+  const runnerUp = sanitizeString(req.body.runnerUp, 120);
+  const thirdPlace = sanitizeString(req.body.thirdPlace, 120);
+
+  if (!winner && !runnerUp && !thirdPlace) {
+    return res.json({ success: false, message: "Enter at least one result field" });
+  }
+
+  subEvent.results = {
+    winner,
+    runnerUp,
+    thirdPlace,
+    updatedAt: new Date().toISOString(),
+    updatedBy: `${req.user.role}#${req.user.id}`
+  };
+
+  store.saveSubEvents(subEvents);
+  logAudit({
+    action: "Update Sub-Event Results",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Sub-event ${subEvent.id}: ${subEvent.name} (Event ${event.id}: ${event.name})`
+  });
+
+  res.json({ success: true, results: subEvent.results, subEvent, event });
 });
 
 /* =========================

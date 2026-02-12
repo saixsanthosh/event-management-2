@@ -206,23 +206,85 @@ if (!window.uiConfirm) {
 /* =========================
    EVENT RESULT HELPERS
 ========================= */
+if (!window.normalizeResultFields) {
+  window.normalizeResultFields = function normalizeResultFields(source) {
+    const safeSource = source && typeof source === "object" ? source : {};
+    return {
+      winner: String(safeSource.winner || "").trim(),
+      runnerUp: String(safeSource.runnerUp || "").trim(),
+      thirdPlace: String(safeSource.thirdPlace || "").trim(),
+      updatedAt: String(safeSource.updatedAt || "").trim(),
+      updatedBy: String(safeSource.updatedBy || "").trim()
+    };
+  };
+}
+
 if (!window.getEventResults) {
   window.getEventResults = function getEventResults(event) {
-    const source = event && typeof event.results === "object" ? event.results : {};
-    const winner = String(source.winner || "").trim();
-    const runnerUp = String(source.runnerUp || "").trim();
-    const thirdPlace = String(source.thirdPlace || "").trim();
-    const updatedAt = String(source.updatedAt || "").trim();
-    const updatedBy = String(source.updatedBy || "").trim();
-    return { winner, runnerUp, thirdPlace, updatedAt, updatedBy };
+    return window.normalizeResultFields(event && event.results);
+  };
+}
+
+if (!window.getSubEventResults) {
+  window.getSubEventResults = function getSubEventResults(subEvent) {
+    return window.normalizeResultFields(subEvent && subEvent.results);
+  };
+}
+
+if (!window.hasSubEventResults) {
+  window.hasSubEventResults = function hasSubEventResults(subEvent) {
+    const results = window.getSubEventResults(subEvent);
+    return Boolean(results.winner || results.runnerUp || results.thirdPlace);
+  };
+}
+
+if (!window.__eventSubEventsCache) {
+  window.__eventSubEventsCache = new Map();
+}
+
+if (!window.fetchEventSubEvents) {
+  window.fetchEventSubEvents = async function fetchEventSubEvents(eventId, options = {}) {
+    const id = Number.parseInt(eventId, 10);
+    if (!Number.isFinite(id) || id <= 0) return [];
+
+    const cache = window.__eventSubEventsCache;
+    const force = Boolean(options && options.force);
+    const cached = cache.get(id);
+
+    if (!force && cached && Array.isArray(cached.data)) {
+      return cached.data;
+    }
+    if (!force && cached && cached.promise) {
+      return cached.promise;
+    }
+
+    const request = fetch(`${API_BASE}/api/subevents/${id}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => []);
+
+    cache.set(id, { promise: request });
+    const subEvents = await request;
+    cache.set(id, { data: subEvents, at: Date.now() });
+    return subEvents;
   };
 }
 
 if (!window.hasEventResults) {
   window.hasEventResults = function hasEventResults(event) {
-    const results = window.getEventResults(event);
     const status = String((event && event.status) || "");
-    return status === "Completed" && Boolean(results.winner || results.runnerUp || results.thirdPlace);
+    if (status !== "Completed") return false;
+
+    const legacyResults = window.getEventResults(event);
+    if (legacyResults.winner || legacyResults.runnerUp || legacyResults.thirdPlace) {
+      return true;
+    }
+
+    const id = Number.parseInt(event && event.id, 10);
+    if (!Number.isFinite(id) || id <= 0) return false;
+    const cached = window.__eventSubEventsCache.get(id);
+    if (!cached || !Array.isArray(cached.data)) return false;
+    return cached.data.some((subEvent) => window.hasSubEventResults(subEvent));
   };
 }
 
@@ -243,8 +305,7 @@ if (!window.showEventDetailsModal) {
     const status = String(safeEvent.status || "Upcoming");
     const date = String(safeEvent.date || "Not set");
     const description = String(safeEvent.description || "No description");
-    const results = window.getEventResults(safeEvent);
-    const hasResults = window.hasEventResults(safeEvent);
+    const legacyResults = window.getEventResults(safeEvent);
     const isCompleted = status === "Completed";
 
     const backdrop = document.createElement("div");
@@ -254,7 +315,10 @@ if (!window.showEventDetailsModal) {
     card.className = "modal-card";
     card.setAttribute("role", "dialog");
     card.setAttribute("aria-modal", "true");
-    card.style.width = "min(94vw, 560px)";
+    card.style.width = "min(95vw, 760px)";
+    card.style.maxHeight = "min(88vh, 760px)";
+    card.style.overflowY = "auto";
+    card.style.paddingRight = "16px";
     card.style.textTransform = "none";
 
     const title = document.createElement("div");
@@ -284,27 +348,102 @@ if (!window.showEventDetailsModal) {
     resultBox.style.color = "var(--text-primary)";
     resultBox.style.marginBottom = "14px";
 
-    if (isCompleted && hasResults) {
+    function renderLegacyResults() {
       resultBox.innerHTML = `
         <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:8px">Published Results</div>
         <div style="display:grid;gap:6px;font-size:0.95rem">
-          <div><strong>Winner:</strong> ${esc(results.winner || "Not set")}</div>
-          <div><strong>Runner-up:</strong> ${esc(results.runnerUp || "Not set")}</div>
-          <div><strong>Third Place:</strong> ${esc(results.thirdPlace || "Not set")}</div>
+          <div><strong>Winner:</strong> ${esc(legacyResults.winner || "Not set")}</div>
+          <div><strong>Runner-up:</strong> ${esc(legacyResults.runnerUp || "Not set")}</div>
+          <div><strong>Third Place:</strong> ${esc(legacyResults.thirdPlace || "Not set")}</div>
         </div>
       `;
-      if (results.updatedAt || results.updatedBy) {
+      if (legacyResults.updatedAt || legacyResults.updatedBy) {
         const meta = document.createElement("div");
         meta.style.marginTop = "8px";
         meta.style.fontSize = "0.78rem";
         meta.style.color = "var(--text-muted)";
-        meta.textContent = `Updated: ${results.updatedAt || "-"}${results.updatedBy ? ` by ${results.updatedBy}` : ""}`;
+        meta.textContent = `Updated: ${legacyResults.updatedAt || "-"}${legacyResults.updatedBy ? ` by ${legacyResults.updatedBy}` : ""}`;
         resultBox.appendChild(meta);
       }
-    } else if (isCompleted) {
-      resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">Event is completed, but results are not published yet.</div>`;
-    } else {
+    }
+
+    function renderSubEventResults(subEvents) {
+      const ordered = [...subEvents].sort((a, b) =>
+        String(a && a.name ? a.name : "").localeCompare(String(b && b.name ? b.name : ""))
+      );
+      const publishedCount = ordered.filter((subEvent) => window.hasSubEventResults(subEvent)).length;
+      const rows = ordered
+        .map((subEvent) => {
+          const subEventName = esc((subEvent && subEvent.name) || "Sub-event");
+          const results = window.getSubEventResults(subEvent);
+          const hasResults = window.hasSubEventResults(subEvent);
+          const updated = results.updatedAt || results.updatedBy
+            ? `<div style="margin-top:8px;font-size:0.74rem;color:var(--text-muted)">Updated: ${esc(results.updatedAt || "-")}${results.updatedBy ? ` by ${esc(results.updatedBy)}` : ""}</div>`
+            : "";
+          const statusNote = hasResults
+            ? ""
+            : `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted)">Results not published yet</div>`;
+
+          return `
+            <div style="border:1px solid var(--border-color);border-radius:12px;padding:12px;background:rgba(12,9,26,0.55)">
+              <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:6px">${subEventName}</div>
+              <div style="display:grid;gap:4px;font-size:0.92rem">
+                <div><strong>Winner:</strong> ${esc(results.winner || "Not set")}</div>
+                <div><strong>Runner-up:</strong> ${esc(results.runnerUp || "Not set")}</div>
+                <div><strong>Third Place:</strong> ${esc(results.thirdPlace || "Not set")}</div>
+              </div>
+              ${updated}
+              ${statusNote}
+            </div>
+          `;
+        })
+        .join("");
+
+      resultBox.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="font-size:0.9rem;color:var(--text-secondary)">Sub-event results</div>
+          <div style="font-size:0.82rem;color:var(--text-muted)">${publishedCount}/${ordered.length} published</div>
+        </div>
+        <div style="display:grid;gap:10px;max-height:340px;overflow-y:auto;padding-right:6px">
+          ${rows}
+        </div>
+      `;
+    }
+
+    if (!isCompleted) {
       resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">Results will be available after the event is marked Completed.</div>`;
+    } else {
+      resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">Loading sub-event results...</div>`;
+
+      const eventId = Number.parseInt(safeEvent.id, 10);
+      if (!Number.isFinite(eventId) || eventId <= 0) {
+        if (legacyResults.winner || legacyResults.runnerUp || legacyResults.thirdPlace) {
+          renderLegacyResults();
+        } else {
+          resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">No sub-events found for this event.</div>`;
+        }
+      } else {
+        window
+          .fetchEventSubEvents(eventId, { force: true })
+          .then((subEvents) => {
+            if (Array.isArray(subEvents) && subEvents.length > 0) {
+              renderSubEventResults(subEvents);
+              return;
+            }
+            if (legacyResults.winner || legacyResults.runnerUp || legacyResults.thirdPlace) {
+              renderLegacyResults();
+              return;
+            }
+            resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">No sub-events found for this event.</div>`;
+          })
+          .catch(() => {
+            if (legacyResults.winner || legacyResults.runnerUp || legacyResults.thirdPlace) {
+              renderLegacyResults();
+            } else {
+              resultBox.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted)">Unable to load sub-event results right now.</div>`;
+            }
+          });
+      }
     }
 
     const actions = document.createElement("div");
@@ -385,7 +524,9 @@ if (!window.createReadOnlyEventItem) {
     );
     item.appendChild(infoBtn);
 
-    if (window.hasEventResults(event)) {
+    let hasTrophy = false;
+    function appendTrophyButton() {
+      if (hasTrophy) return;
       const trophyBtn = makeIconButton(
         "fas fa-trophy",
         "View published results",
@@ -394,6 +535,17 @@ if (!window.createReadOnlyEventItem) {
         () => window.showEventDetailsModal(event)
       );
       item.appendChild(trophyBtn);
+      hasTrophy = true;
+    }
+
+    if (window.hasEventResults(event)) {
+      appendTrophyButton();
+    } else if (String(event && event.status) === "Completed" && event && event.id) {
+      window.fetchEventSubEvents(event.id).then((subEvents) => {
+        if (Array.isArray(subEvents) && subEvents.some((subEvent) => window.hasSubEventResults(subEvent))) {
+          appendTrophyButton();
+        }
+      });
     }
 
     return item;

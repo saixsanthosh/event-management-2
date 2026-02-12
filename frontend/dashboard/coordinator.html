@@ -86,7 +86,7 @@ if (user.role !== "Coordinator") {
                 <div style="border:2px dashed var(--border-color);padding:18px;border-radius:16px;margin-bottom:20px;background:var(--input-bg)">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
                         <div style="font-size:1rem;color:var(--text-primary);font-weight:600">
-                            Event Results
+                            Sub-event Results
                         </div>
                         <div id="resultEventStatus" style="font-size:0.82rem;color:var(--text-secondary);border:1px solid var(--border-color);padding:6px 10px;border-radius:999px">
                             Status: -
@@ -155,6 +155,7 @@ if (user.role !== "Coordinator") {
   const thirdPlaceInput = document.getElementById("thirdPlaceInput");
   const saveResultsBtn = document.getElementById("saveResultsBtn");
   let currentEvent = null;
+  let currentSubEvent = null;
 
   async function fetchJSON(url, options = {}) {
       const res = await fetch(url, options);
@@ -169,13 +170,14 @@ if (user.role !== "Coordinator") {
       return localStorage.getItem("token");
   }
 
-  function setResultEditorState(event) {
+  function setResultEditorState(event, subEvent) {
       currentEvent = event || null;
+      currentSubEvent = subEvent || null;
       const status = event && event.status ? event.status : "Unknown";
       statusEl.textContent = `Status: ${status}`;
 
       const isCompleted = status === "Completed";
-      const results = event && event.results && typeof event.results === "object" ? event.results : {};
+      const results = subEvent && subEvent.results && typeof subEvent.results === "object" ? subEvent.results : {};
 
       winnerInput.value = "";
       runnerUpInput.value = "";
@@ -192,15 +194,15 @@ if (user.role !== "Coordinator") {
       if (isCompleted) {
           hintEl.textContent = "Add or update Winner, Runner-up, and Third Place, then save.";
       } else if (status === "Unknown") {
-          hintEl.textContent = "Select a sub-event to load the parent event.";
+          hintEl.textContent = "Select a sub-event to load event and result details.";
       } else {
           hintEl.textContent = "Results can be updated only when event status is Completed.";
       }
   }
 
-  async function saveEventResults() {
-      if (!currentEvent || !currentEvent.id) {
-          alert("No event selected");
+  async function saveSubEventResults() {
+      if (!currentSubEvent || !currentSubEvent.id) {
+          alert("No sub-event selected");
           return;
       }
 
@@ -217,27 +219,31 @@ if (user.role !== "Coordinator") {
       };
 
       try {
-          // Refresh event status before save to avoid stale Completed checks.
-          const latest = await fetchJSON(`${API_BASE}/api/events/${currentEvent.id}`);
-          currentEvent = latest || currentEvent;
+          // Refresh event + sub-event before save to avoid stale status/results checks.
+          const latestSubEvent = await fetchJSON(`${API_BASE}/api/subevents/detail/${currentSubEvent.id}`);
+          currentSubEvent = latestSubEvent || currentSubEvent;
+
+          const latestEvent = await fetchJSON(`${API_BASE}/api/events/${currentSubEvent.eventId}`);
+          currentEvent = latestEvent || currentEvent;
           statusEl.textContent = `Status: ${currentEvent && currentEvent.status ? currentEvent.status : "Unknown"}`;
-          if (!latest || latest.status !== "Completed") {
-              setResultEditorState(latest);
+
+          if (!latestEvent || latestEvent.status !== "Completed") {
+              setResultEditorState(latestEvent, latestSubEvent);
               alert("Event must be Completed before updating results.");
               return;
           }
 
           const payload = {
-              winner: draft.winner || ((latest.results && latest.results.winner) || ""),
-              runnerUp: draft.runnerUp || ((latest.results && latest.results.runnerUp) || ""),
-              thirdPlace: draft.thirdPlace || ((latest.results && latest.results.thirdPlace) || "")
+              winner: draft.winner || ((latestSubEvent.results && latestSubEvent.results.winner) || ""),
+              runnerUp: draft.runnerUp || ((latestSubEvent.results && latestSubEvent.results.runnerUp) || ""),
+              thirdPlace: draft.thirdPlace || ((latestSubEvent.results && latestSubEvent.results.thirdPlace) || "")
           };
           if (!payload.winner && !payload.runnerUp && !payload.thirdPlace) {
               alert("Enter at least one result");
               return;
           }
 
-          const data = await fetchJSON(`${API_BASE}/api/events/${currentEvent.id}/results`, {
+          const data = await fetchJSON(`${API_BASE}/api/subevents/${currentSubEvent.id}/results`, {
               method: "PUT",
               headers: {
                   "Content-Type": "application/json",
@@ -246,7 +252,7 @@ if (user.role !== "Coordinator") {
               body: JSON.stringify(payload)
           });
           if (data.success) {
-              setResultEditorState(data.event || latest);
+              setResultEditorState(latestEvent, data.subEvent || latestSubEvent);
               hintEl.textContent = "Results saved. Fields are cleared for the next update.";
               alert("Results updated");
           } else {
@@ -315,7 +321,7 @@ if (user.role !== "Coordinator") {
       const event = eventMap.get(subEvent.eventId);
 
       labelEl.textContent = `${subEvent.name} — ${event ? event.name : "Event"}`;
-      setResultEditorState(event || null);
+      setResultEditorState(event || null, subEvent || null);
 
       const registrations = await fetchJSON(`${API_BASE}/api/registrations/${subEventId}`);
       renderStudents(registrations);
@@ -354,11 +360,11 @@ if (user.role !== "Coordinator") {
 
   if (saveResultsBtn) {
       saveResultsBtn.addEventListener("click", async () => {
-          await saveEventResults();
+          await saveSubEventResults();
       });
   }
 
-  setResultEditorState(null);
+  setResultEditorState(null, null);
   document.addEventListener("DOMContentLoaded", loadAssignedSubEvent);
 </script>
 
