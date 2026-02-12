@@ -282,6 +282,7 @@ const eventsOverviewListEl = document.getElementById("eventsOverviewList");
 const sendApprovalBtn = document.getElementById("sendApprovalBtn");
 const setFeeBtn = document.getElementById("setFeeBtn");
 const paymentRequestsEl = document.getElementById("paymentRequests");
+const MAX_VISIBLE_PAYMENT_REQUESTS = 5;
 const wfInputs = {
   President: document.getElementById("wfPresident"),
   Faculty: document.getElementById("wfFaculty"),
@@ -437,11 +438,41 @@ async function loadSummary() {
 
 function renderEmptyPayments() {
   if (!paymentRequestsEl) return;
+  clearPaymentRequestScrollLimit();
   paymentRequestsEl.innerHTML = `
     <div style="border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:20px">
       <p style="color:var(--text-muted);margin:0">No pending payments</p>
     </div>
   `;
+}
+
+function clearPaymentRequestScrollLimit() {
+  if (!paymentRequestsEl) return;
+  paymentRequestsEl.style.maxHeight = "";
+  paymentRequestsEl.style.overflowY = "";
+  paymentRequestsEl.style.paddingRight = "";
+}
+
+function applyPaymentRequestScrollLimit() {
+  if (!paymentRequestsEl) return;
+
+  const cards = Array.from(paymentRequestsEl.children);
+  if (cards.length <= MAX_VISIBLE_PAYMENT_REQUESTS) {
+    clearPaymentRequestScrollLimit();
+    return;
+  }
+
+  const visibleCards = cards.slice(0, MAX_VISIBLE_PAYMENT_REQUESTS);
+  const totalHeight = visibleCards.reduce((sum, card) => {
+    const styles = window.getComputedStyle(card);
+    const marginTop = parseFloat(styles.marginTop) || 0;
+    const marginBottom = parseFloat(styles.marginBottom) || 0;
+    return sum + card.offsetHeight + marginTop + marginBottom;
+  }, 0);
+
+  paymentRequestsEl.style.maxHeight = `${Math.ceil(totalHeight)}px`;
+  paymentRequestsEl.style.overflowY = "auto";
+  paymentRequestsEl.style.paddingRight = "6px";
 }
 
 async function loadPayments() {
@@ -494,6 +525,8 @@ async function loadPayments() {
         await updatePaymentStatus(id, status);
       });
     });
+
+    applyPaymentRequestScrollLimit();
   } catch (err) {
     console.error(err);
     renderEmptyPayments();
@@ -526,6 +559,8 @@ document.addEventListener("DOMContentLoaded", () => {
   loadSummary();
   loadPayments();
 });
+
+window.addEventListener("resize", applyPaymentRequestScrollLimit);
 
 async function updateSubEventFee(id, fee, token) {
   const res = await fetch(`${API_BASE}/api/subevents/${id}`, {
