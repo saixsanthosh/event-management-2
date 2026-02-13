@@ -91,26 +91,6 @@
                 <form onsubmit="submitForm(event)">
 
                     <div class="input-group">
-                        <input required placeholder="Full Name" id="studentName">
-                    </div>
-
-                    <div class="input-group">
-                        <input required placeholder="College Name" id="studentCollege">
-                    </div>
-
-                    <div class="input-group">
-                        <input required placeholder="Department / Class" id="studentDepartment">
-                    </div>
-
-                    <div class="input-group">
-                        <input required type="email" placeholder="Email ID" id="studentEmail">
-                    </div>
-
-                    <div class="input-group">
-                        <input required type="tel" placeholder="Mobile Number" id="studentMobile">
-                    </div>
-
-                    <div class="input-group">
                         <select required id="eventSelect" style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--input-bg);color:var(--text-primary)">
                             <option value="">Select Event</option>
                         </select>
@@ -120,6 +100,40 @@
                         <select required id="subEventSelect" style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--input-bg);color:var(--text-primary)">
                             <option value="">Select Sub Event</option>
                         </select>
+                    </div>
+
+                    <div id="individualFields">
+                        <div class="input-group">
+                            <input required placeholder="Full Name" id="studentName">
+                        </div>
+
+                        <div class="input-group">
+                            <input required placeholder="College Name" id="studentCollege">
+                        </div>
+
+                        <div class="input-group">
+                            <input required placeholder="Department / Class" id="studentDepartment">
+                        </div>
+
+                        <div class="input-group">
+                            <input required type="email" placeholder="Email ID" id="studentEmail">
+                        </div>
+
+                        <div class="input-group">
+                            <input required type="tel" placeholder="Mobile Number" id="studentMobile">
+                        </div>
+                    </div>
+
+                    <div id="teamFields" style="display:none;border:1px solid var(--border-color);border-radius:14px;padding:14px 14px 4px 14px;margin-bottom:20px;background:var(--input-bg)">
+                        <div class="input-group">
+                            <input id="teamName" placeholder="Team Name (optional)">
+                        </div>
+                        <div class="input-group">
+                            <select id="teamSizeSelect" style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--card-bg);color:var(--text-primary)">
+                                <option value="">Select Team Size</option>
+                            </select>
+                        </div>
+                        <div id="teamMembersContainer"></div>
                     </div>
 
                     <input type="hidden" id="applyAsSelect" value="Participant">
@@ -180,6 +194,93 @@
 <script>
 const eventSelect = document.getElementById("eventSelect");
 const subEventSelect = document.getElementById("subEventSelect");
+const individualFields = document.getElementById("individualFields");
+const teamFields = document.getElementById("teamFields");
+const teamNameInput = document.getElementById("teamName");
+const teamSizeSelect = document.getElementById("teamSizeSelect");
+const teamMembersContainer = document.getElementById("teamMembersContainer");
+let currentSubEvents = [];
+let selectedSubEvent = null;
+
+function normalizeType(value) {
+    const normalized = String(value || "").toLowerCase();
+    return normalized === "team" || normalized === "teams" ? "Team" : "Individual";
+}
+
+function clearTeamMembers() {
+    teamMembersContainer.innerHTML = "";
+}
+
+function setIndividualMode() {
+    selectedSubEvent = selectedSubEvent || null;
+    teamFields.style.display = "none";
+    individualFields.style.display = "";
+    individualFields.querySelectorAll("input").forEach((input) => {
+        input.disabled = false;
+        input.required = true;
+    });
+    teamNameInput.disabled = true;
+    teamSizeSelect.disabled = true;
+    teamNameInput.value = "";
+    clearTeamMembers();
+}
+
+function createMemberCard(index) {
+    const safeIndex = index + 1;
+    return `
+      <div style="border:1px solid var(--border-color);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--card-bg)">
+        <div style="font-weight:600;color:var(--text-secondary);margin-bottom:8px">Member ${safeIndex}</div>
+        <div class="input-group"><input data-member="${index}" data-field="name" placeholder="Member ${safeIndex} Name"></div>
+        <div class="input-group"><input data-member="${index}" data-field="college" placeholder="Member ${safeIndex} College"></div>
+        <div class="input-group"><input data-member="${index}" data-field="department" placeholder="Member ${safeIndex} Department / Class"></div>
+        <div class="input-group"><input data-member="${index}" data-field="email" type="email" placeholder="Member ${safeIndex} Email"></div>
+        <div class="input-group"><input data-member="${index}" data-field="mobile" type="tel" placeholder="Member ${safeIndex} Mobile"></div>
+      </div>
+    `;
+}
+
+function renderTeamMemberFields(size) {
+    clearTeamMembers();
+    if (!Number.isFinite(size) || size <= 0) return;
+    const blocks = [];
+    for (let i = 0; i < size; i += 1) {
+        blocks.push(createMemberCard(i));
+    }
+    teamMembersContainer.innerHTML = blocks.join("");
+}
+
+function setTeamMode(subEvent) {
+    const min = Number(subEvent && subEvent.teamMinSize) || 2;
+    const max = Number(subEvent && subEvent.teamMaxSize) || Math.max(min, 4);
+    individualFields.style.display = "none";
+    individualFields.querySelectorAll("input").forEach((input) => {
+        input.disabled = true;
+        input.required = false;
+    });
+    teamFields.style.display = "";
+    teamNameInput.disabled = false;
+    teamSizeSelect.disabled = false;
+    teamSizeSelect.innerHTML = "";
+    for (let size = min; size <= max; size += 1) {
+        const opt = document.createElement("option");
+        opt.value = String(size);
+        opt.textContent = `${size} Members`;
+        teamSizeSelect.appendChild(opt);
+    }
+    teamSizeSelect.value = String(max);
+    renderTeamMemberFields(max);
+}
+
+function handleSubEventSelection() {
+    const id = Number.parseInt(subEventSelect.value, 10);
+    selectedSubEvent = currentSubEvents.find((sub) => Number(sub.id) === id) || null;
+    const type = normalizeType(selectedSubEvent && selectedSubEvent.participationType);
+    if (type === "Team") {
+        setTeamMode(selectedSubEvent);
+    } else {
+        setIndividualMode();
+    }
+}
 
 async function loadEvents() {
     try {
@@ -201,15 +302,20 @@ async function loadEvents() {
 
 async function loadSubEvents(eventId) {
     subEventSelect.innerHTML = `<option value="">Select Sub Event</option>`;
+    currentSubEvents = [];
+    selectedSubEvent = null;
+    setIndividualMode();
     if (!eventId) return;
 
     try {
         const res = await fetch(`${API_BASE}/api/subevents/${eventId}`);
         const subEvents = await res.json();
-        subEvents.forEach(sub => {
+        currentSubEvents = Array.isArray(subEvents) ? subEvents : [];
+        currentSubEvents.forEach(sub => {
             const option = document.createElement("option");
             option.value = sub.id;
-            option.textContent = sub.name;
+            const type = normalizeType(sub.participationType);
+            option.textContent = `${sub.name}${type === "Team" ? " (Team)" : ""}`;
             subEventSelect.appendChild(option);
         });
     } catch (err) {
@@ -221,32 +327,76 @@ async function loadSubEvents(eventId) {
 eventSelect.addEventListener("change", (e) => {
     loadSubEvents(e.target.value);
 });
+subEventSelect.addEventListener("change", handleSubEventSelection);
+teamSizeSelect.addEventListener("change", () => {
+    const size = Number.parseInt(teamSizeSelect.value, 10);
+    renderTeamMemberFields(size);
+});
 
 async function submitForm(e) {
     e.preventDefault();
 
-    const name = document.getElementById("studentName").value.trim();
-    const college = document.getElementById("studentCollege").value.trim();
-    const department = document.getElementById("studentDepartment").value.trim();
-    const email = document.getElementById("studentEmail").value.trim();
-    const mobile = document.getElementById("studentMobile").value.trim();
     const subEventId = subEventSelect.value;
-    const applyAs = "Participant";
-
-    if (!name || !college || !department || !email || !mobile || !subEventId) {
-        alert("Please fill all required fields");
+    if (!subEventId) {
+        alert("Please select a sub-event");
         return;
     }
+    const isTeam = normalizeType(selectedSubEvent && selectedSubEvent.participationType) === "Team";
 
     try {
-        const pending = {
-            name,
-            college,
-            department,
-            email,
-            mobile,
-            subEventId
-        };
+        let pending = null;
+        if (isTeam) {
+            const teamSize = Number.parseInt(teamSizeSelect.value, 10);
+            const teamName = teamNameInput.value.trim();
+            if (!Number.isFinite(teamSize) || teamSize <= 0) {
+                alert("Please select a valid team size");
+                return;
+            }
+            const members = [];
+            for (let index = 0; index < teamSize; index += 1) {
+                const getValue = (field) => {
+                    const el = teamMembersContainer.querySelector(`input[data-member="${index}"][data-field="${field}"]`);
+                    return el ? el.value.trim() : "";
+                };
+                const member = {
+                    name: getValue("name"),
+                    college: getValue("college"),
+                    department: getValue("department"),
+                    email: getValue("email"),
+                    mobile: getValue("mobile")
+                };
+                if (!member.name || !member.college || !member.department || !member.email || !member.mobile) {
+                    alert(`Please fill all details for Member ${index + 1}`);
+                    return;
+                }
+                members.push(member);
+            }
+            pending = {
+                participationType: "Team",
+                teamName,
+                members,
+                subEventId
+            };
+        } else {
+            const name = document.getElementById("studentName").value.trim();
+            const college = document.getElementById("studentCollege").value.trim();
+            const department = document.getElementById("studentDepartment").value.trim();
+            const email = document.getElementById("studentEmail").value.trim();
+            const mobile = document.getElementById("studentMobile").value.trim();
+            if (!name || !college || !department || !email || !mobile) {
+                alert("Please fill all required fields");
+                return;
+            }
+            pending = {
+                participationType: "Individual",
+                name,
+                college,
+                department,
+                email,
+                mobile,
+                subEventId
+            };
+        }
         localStorage.setItem("pendingRegistration", JSON.stringify(pending));
         alert("Please complete payment to confirm registration.");
         window.location.href = "payment.html";

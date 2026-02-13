@@ -176,6 +176,18 @@ function normalizeParticipationType(value) {
   return "Individual";
 }
 
+function normalizeTeamSizeRange(participationType, minValue, maxValue) {
+  if (participationType !== "Team") {
+    return { teamMinSize: 1, teamMaxSize: 1 };
+  }
+  const teamMinSize = clampInt(minValue, 2, 20, 2);
+  const teamMaxSize = clampInt(maxValue, 2, 20, Math.max(4, teamMinSize));
+  return {
+    teamMinSize,
+    teamMaxSize: Math.max(teamMinSize, teamMaxSize)
+  };
+}
+
 function logAudit({ action, actor, role, details }) {
   const entry = {
     id: store.nextId("audit"),
@@ -240,6 +252,19 @@ function ensureSubEventFields(subEvent) {
   let changed = false;
   if (subEvent.participationType !== "Individual" && subEvent.participationType !== "Team") {
     subEvent.participationType = normalizeParticipationType(subEvent.participationType);
+    changed = true;
+  }
+  const normalizedTeam = normalizeTeamSizeRange(
+    subEvent.participationType,
+    subEvent.teamMinSize,
+    subEvent.teamMaxSize
+  );
+  if (subEvent.teamMinSize !== normalizedTeam.teamMinSize) {
+    subEvent.teamMinSize = normalizedTeam.teamMinSize;
+    changed = true;
+  }
+  if (subEvent.teamMaxSize !== normalizedTeam.teamMaxSize) {
+    subEvent.teamMaxSize = normalizedTeam.teamMaxSize;
     changed = true;
   }
   if (!subEvent.results || typeof subEvent.results !== "object") {
@@ -763,6 +788,11 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
   const time = sanitizeString(req.body.time, 20);
   const venue = sanitizeString(req.body.venue, 120);
   const participationType = normalizeParticipationType(req.body.participationType);
+  const teamSizeRange = normalizeTeamSizeRange(
+    participationType,
+    req.body.teamMinSize,
+    req.body.teamMaxSize
+  );
 
   if (!eventId || !name) {
     return res.json({ success: false, message: "Missing fields" });
@@ -787,6 +817,8 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
     time: time || "",
     venue: venue || "",
     participationType,
+    teamMinSize: teamSizeRange.teamMinSize,
+    teamMaxSize: teamSizeRange.teamMaxSize,
     results: {
       winner: "",
       runnerUp: "",
@@ -860,6 +892,12 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
   const participationType = req.body.participationType !== undefined
     ? normalizeParticipationType(req.body.participationType)
     : undefined;
+  const teamMinSize = req.body.teamMinSize !== undefined
+    ? clampInt(req.body.teamMinSize, 2, 20, 2)
+    : undefined;
+  const teamMaxSize = req.body.teamMaxSize !== undefined
+    ? clampInt(req.body.teamMaxSize, 2, 20, 4)
+    : undefined;
 
   const subEvents = store.getSubEvents();
   const subEvent = subEvents.find(se => se.id === id);
@@ -876,7 +914,19 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
   }
   if (time !== undefined) subEvent.time = time;
   if (venue !== undefined) subEvent.venue = venue;
-  if (participationType !== undefined) subEvent.participationType = participationType;
+  if (participationType !== undefined) {
+    subEvent.participationType = participationType;
+  }
+  if (subEvent.participationType === "Team") {
+    if (teamMinSize !== undefined) subEvent.teamMinSize = teamMinSize;
+    if (teamMaxSize !== undefined) subEvent.teamMaxSize = teamMaxSize;
+    if (subEvent.teamMaxSize < subEvent.teamMinSize) {
+      return res.json({ success: false, message: "Team max size must be greater than or equal to min size" });
+    }
+  } else {
+    subEvent.teamMinSize = 1;
+    subEvent.teamMaxSize = 1;
+  }
 
   store.saveSubEvents(subEvents);
   logAudit({
@@ -965,15 +1015,121 @@ app.delete("/api/subevents/:id", rateLimit(30), verifyToken, allowRoles("Preside
    REGISTER STUDENT
 ========================= */
 app.post("/api/register", rateLimit(40), (req, res) => {
+  const subEventId = toSafeInt(req.body.subEventId);
+  const transactionId = sanitizeString(req.body.transactionId, 80);
+  const teamName = sanitizeString(req.body.teamName, 120);
+  const membersInput = Array.isArray(req.body.members) ? req.body.members : null;
+
+  if (!subEventId) {
+    return res.json({ success: false, message: "Sub-event is required" });
+  }
+  const subEvents = store.getSubEvents();
+  const subEvent = subEvents.find(se => se.id === subEventId);
+  if (!subEvent) {
+    return res.status(404).json({ success: false, message: "Sub-event not found" });
+  }
+  let subEventChanged = false;
+  if (ensureSubEventFields(subEvent)) {
+    subEventChanged = true;
+  }
+  if (subEventChanged) {
+    store.saveSubEvents(subEvents);
+  }
+
+  const registrations = store.getRegistrations();
+  if (subEvent.participationType === "Team") {
+    if (!membersInput || membersInput.length === 0) {
+      return res.json({ success: false, message: "Team member details are required" });
+    }
+    const teamMinSize = Number(subEvent.teamMinSize || 2);
+    const teamMaxSize = Number(subEvent.teamMaxSize || 4);
+    if (membersInput.length < teamMinSize || membersInput.length > teamMaxSize) {
+      return res.json({ success: false, message: `Team size must be between ${teamMinSize} and ${teamMaxSize}` });
+    }
+
+    const normalizedMembers = membersInput.map((member, index) => ({
+      name: sanitizeString(member && member.name, 120),
+      college: sanitizeString(member && member.college, 120),
+      department: sanitizeString(member && member.department, 120),
+      email: sanitizeString(member && member.email, 120),
+      mobile: sanitizeString(member && member.mobile, 20),
+      memberIndex: index + 1
+    }));
+
+    for (const member of normalizedMembers) {
+      if (!member.name || !member.college || !member.email || !member.mobile) {
+        return res.json({ success: false, message: "All team member fields are required" });
+      }
+      if (!isValidEmail(member.email)) {
+        return res.json({ success: false, message: `Invalid email for ${member.name}` });
+      }
+      if (!isValidPhone(member.mobile)) {
+        return res.json({ success: false, message: `Invalid mobile number for ${member.name}` });
+      }
+    }
+
+    const uniqueEmails = new Set(normalizedMembers.map((member) => member.email.toLowerCase()));
+    if (uniqueEmails.size !== normalizedMembers.length) {
+      return res.json({ success: false, message: "Duplicate member email found in team" });
+    }
+
+    const duplicateMember = normalizedMembers.find((member) =>
+      registrations.some((reg) => reg.subEventId === subEventId && reg.email.toLowerCase() === member.email.toLowerCase())
+    );
+    if (duplicateMember) {
+      return res.json({ success: false, message: `${duplicateMember.email} is already registered for this sub-event` });
+    }
+
+    const teamId = `TEAM-${subEventId}-${Date.now().toString(36)}-${Math.floor(100 + Math.random() * 900)}`;
+    const resolvedTeamName = teamName || `Team ${teamId.slice(-3)}`;
+    const created = [];
+    normalizedMembers.forEach((member, index) => {
+      const newReg = {
+        id: store.nextId("registrations"),
+        name: member.name,
+        college: member.college,
+        department: member.department || "",
+        email: member.email,
+        mobile: member.mobile,
+        subEventId,
+        transactionId: transactionId || "",
+        paymentStatus: "Pending",
+        attendance: false,
+        teamId,
+        teamName: resolvedTeamName,
+        teamSize: normalizedMembers.length,
+        isTeamCaptain: index === 0,
+        memberIndex: member.memberIndex
+      };
+      registrations.push(newReg);
+      created.push(newReg);
+    });
+
+    store.saveRegistrations(registrations);
+    logAudit({
+      action: "Register Team",
+      actor: "Public",
+      role: "Student",
+      details: `Team ${resolvedTeamName} (${created.length} members) for sub-event ${subEventId}`
+    });
+    return res.json({
+      success: true,
+      team: {
+        teamId,
+        teamName: resolvedTeamName,
+        size: created.length
+      },
+      registrations: created
+    });
+  }
+
   const name = sanitizeString(req.body.name, 120);
   const college = sanitizeString(req.body.college, 120);
   const department = sanitizeString(req.body.department, 120);
   const email = sanitizeString(req.body.email, 120);
   const mobile = sanitizeString(req.body.mobile, 20);
-  const subEventId = toSafeInt(req.body.subEventId);
-  const transactionId = sanitizeString(req.body.transactionId, 80);
 
-  if (!name || !college || !email || !mobile || !subEventId) {
+  if (!name || !college || !email || !mobile) {
     return res.json({ success: false, message: "All fields required" });
   }
   if (!isValidEmail(email)) {
@@ -982,13 +1138,7 @@ app.post("/api/register", rateLimit(40), (req, res) => {
   if (!isValidPhone(mobile)) {
     return res.json({ success: false, message: "Invalid mobile number" });
   }
-  const subEventExists = store.getSubEvents().some(se => se.id === subEventId);
-  if (!subEventExists) {
-    return res.status(404).json({ success: false, message: "Sub-event not found" });
-  }
-
-  const registrations = store.getRegistrations();
-  const exists = registrations.find(r => r.email === email && r.subEventId === parseInt(subEventId));
+  const exists = registrations.find(r => r.email === email && r.subEventId === parseInt(subEventId, 10));
   if (exists) {
     return res.json({ success: false, message: "Already registered for this sub-event" });
   }
@@ -1123,20 +1273,21 @@ app.post("/api/payments/:id/status", rateLimit(40), verifyToken, allowRoles("Pre
 
   const registrations = store.getRegistrations();
   let updated = false;
-  if (payment.registrationId) {
-    const reg = registrations.find(r => r.id === Number(payment.registrationId));
-    if (reg) {
-      reg.paymentStatus = status === "Verified" ? "Paid" : "Rejected";
-      if (payment.transactionId) reg.transactionId = payment.transactionId;
-      updated = true;
-    }
-  } else if (payment.transactionId) {
+  if (payment.transactionId) {
     registrations.forEach(r => {
       if (r.transactionId === payment.transactionId) {
         r.paymentStatus = status === "Verified" ? "Paid" : "Rejected";
         updated = true;
       }
     });
+  }
+  if (!updated && payment.registrationId) {
+    const reg = registrations.find(r => r.id === Number(payment.registrationId));
+    if (reg) {
+      reg.paymentStatus = status === "Verified" ? "Paid" : "Rejected";
+      if (payment.transactionId) reg.transactionId = payment.transactionId;
+      updated = true;
+    }
   }
 
   store.savePayments(payments);

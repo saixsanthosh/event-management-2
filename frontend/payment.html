@@ -186,30 +186,42 @@ async function submitPayment() {
         const regRes = await fetch(`${API_ORIGIN}/api/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                name: pending.name,
-                college: pending.college,
-                department: pending.department,
-                email: pending.email,
-                mobile: pending.mobile,
-                subEventId: pending.subEventId,
-                transactionId: txn
-            })
+            body: JSON.stringify(
+                pending && pending.participationType === "Team"
+                    ? {
+                        subEventId: pending.subEventId,
+                        teamName: pending.teamName || "",
+                        members: Array.isArray(pending.members) ? pending.members : [],
+                        transactionId: txn
+                    }
+                    : {
+                        name: pending.name,
+                        college: pending.college,
+                        department: pending.department,
+                        email: pending.email,
+                        mobile: pending.mobile,
+                        subEventId: pending.subEventId,
+                        transactionId: txn
+                    }
+            )
         });
         const regData = await regRes.json();
-        if (!regData.success || !regData.registration) {
+        const primaryRegistration = regData && regData.registration
+            ? regData.registration
+            : (Array.isArray(regData.registrations) ? regData.registrations[0] : null);
+        if (!regData.success || !primaryRegistration) {
             alert(regData.message || "Registration failed");
             return;
         }
 
-        localStorage.setItem("lastRegistrationId", regData.registration.id);
+        localStorage.setItem("lastRegistrationId", primaryRegistration.id);
 
         const payRes = await fetch(`${API_ORIGIN}/api/payments/submit`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 transactionId: txn,
-                registrationId: regData.registration.id
+                registrationId: primaryRegistration.id
             })
         });
         const payData = await payRes.json();

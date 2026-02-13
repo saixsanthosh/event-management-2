@@ -167,12 +167,23 @@
                                 <input type="text" inputmode="numeric" placeholder="Fee" id="subEventFee" title="Registration Fee" aria-label="Registration Fee" style="padding-left:44px;padding-right:16px;min-height:56px;font-size:1rem;">
                             </div>
 
-                            <div class="input-group">
-                                <div class="input-icon"><i class="fas fa-user-group"></i></div>
-                                <select id="subEventParticipationType" title="Participation Type" aria-label="Participation Type" style="width:100%;padding-left:44px;padding-right:16px;min-height:56px;font-size:1rem;border:2px solid var(--border-color);border-radius:12px;background:var(--input-bg);color:var(--text-primary)">
-                                    <option value="Individual">Individual</option>
-                                    <option value="Team">Team</option>
-                                </select>
+                            <div style="grid-column:1/-1">
+                                <div class="segmented-control" role="radiogroup" aria-label="Participation Type">
+                                    <input type="radio" id="subTypeIndividual" name="subEventParticipationType" value="Individual" checked>
+                                    <label for="subTypeIndividual">Individual</label>
+                                    <input type="radio" id="subTypeTeam" name="subEventParticipationType" value="Team">
+                                    <label for="subTypeTeam">Team</label>
+                                </div>
+                            </div>
+
+                            <div class="input-group" id="subEventTeamMinWrap" style="display:none">
+                                <div class="input-icon"><i class="fas fa-users-viewfinder"></i></div>
+                                <input type="text" inputmode="numeric" placeholder="Team Min" id="subEventTeamMin" title="Minimum students in team" aria-label="Minimum students in team" style="padding-left:44px;padding-right:16px;min-height:56px;font-size:1rem;">
+                            </div>
+
+                            <div class="input-group" id="subEventTeamMaxWrap" style="display:none">
+                                <div class="input-icon"><i class="fas fa-users"></i></div>
+                                <input type="text" inputmode="numeric" placeholder="Team Max" id="subEventTeamMax" title="Maximum students in team" aria-label="Maximum students in team" style="padding-left:44px;padding-right:16px;min-height:56px;font-size:1rem;">
                             </div>
 
                         </div>
@@ -215,7 +226,11 @@ const subEventVenueInput = document.getElementById("subEventVenue");
 const subEventCoordinatorsInput = document.getElementById("subEventCoordinators");
 const subEventVolunteersInput = document.getElementById("subEventVolunteers");
 const subEventFeeInput = document.getElementById("subEventFee");
-const subEventParticipationTypeInput = document.getElementById("subEventParticipationType");
+const subEventTypeInputs = Array.from(document.querySelectorAll('input[name="subEventParticipationType"]'));
+const subEventTeamMinWrap = document.getElementById("subEventTeamMinWrap");
+const subEventTeamMaxWrap = document.getElementById("subEventTeamMaxWrap");
+const subEventTeamMinInput = document.getElementById("subEventTeamMin");
+const subEventTeamMaxInput = document.getElementById("subEventTeamMax");
 
 function uiPrompt({ title, message, defaultValue = "", placeholder = "" }) {
   return new Promise((resolve) => {
@@ -304,6 +319,25 @@ function normalizeSubEventType(value) {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "team" || normalized === "teams") return "Team";
   return "Individual";
+}
+
+function getSelectedSubEventType() {
+  const selected = subEventTypeInputs.find((input) => input.checked);
+  return normalizeSubEventType(selected ? selected.value : "Individual");
+}
+
+function syncSubEventTypeUI() {
+  const type = getSelectedSubEventType();
+  const isTeam = type === "Team";
+  if (subEventTeamMinWrap) subEventTeamMinWrap.style.display = isTeam ? "" : "none";
+  if (subEventTeamMaxWrap) subEventTeamMaxWrap.style.display = isTeam ? "" : "none";
+  if (isTeam) {
+    if (!subEventTeamMinInput.value) subEventTeamMinInput.value = "2";
+    if (!subEventTeamMaxInput.value) subEventTeamMaxInput.value = "4";
+  } else {
+    subEventTeamMinInput.value = "";
+    subEventTeamMaxInput.value = "";
+  }
 }
 
 async function fetchEvents() {
@@ -421,11 +455,25 @@ async function createSubEvent() {
   const coordinatorLimit = subEventCoordinatorsInput.value;
   const volunteerLimit = subEventVolunteersInput.value;
   const fee = subEventFeeInput.value;
-  const participationType = normalizeSubEventType(subEventParticipationTypeInput.value);
+  const participationType = getSelectedSubEventType();
 
   if (!name) {
     alert("Sub-event name required");
     return;
+  }
+  let teamMinSize = 1;
+  let teamMaxSize = 1;
+  if (participationType === "Team") {
+    teamMinSize = Number.parseInt(subEventTeamMinInput.value, 10);
+    teamMaxSize = Number.parseInt(subEventTeamMaxInput.value, 10);
+    if (!Number.isFinite(teamMinSize) || !Number.isFinite(teamMaxSize)) {
+      alert("Enter valid team min and max size");
+      return;
+    }
+    if (teamMinSize < 2 || teamMaxSize < 2 || teamMaxSize < teamMinSize) {
+      alert("Team size must be valid (max should be greater than or equal to min, min 2)");
+      return;
+    }
   }
 
   const eventId = await pickEventId();
@@ -447,7 +495,9 @@ async function createSubEvent() {
         date: "",
         time,
         venue,
-        participationType
+        participationType,
+        teamMinSize,
+        teamMaxSize
       })
     });
 
@@ -464,7 +514,9 @@ async function createSubEvent() {
     subEventCoordinatorsInput.value = "";
     subEventVolunteersInput.value = "";
     subEventFeeInput.value = "";
-    subEventParticipationTypeInput.value = "Individual";
+    const individualInput = document.getElementById("subTypeIndividual");
+    if (individualInput) individualInput.checked = true;
+    syncSubEventTypeUI();
   } catch (err) {
     console.error("Fetch error:", err);
     alert("Backend not reachable");
@@ -641,6 +693,28 @@ async function updateSubEvent() {
   });
   if (participationTypeInput === null) return;
   const participationType = normalizeSubEventType(participationTypeInput);
+  let teamMinSize = current.teamMinSize || 1;
+  let teamMaxSize = current.teamMaxSize || 1;
+  if (participationType === "Team") {
+    const teamMinInput = await uiPrompt({
+      title: "Team Min Size",
+      message: "Minimum students in team:",
+      defaultValue: current.teamMinSize || 2
+    });
+    if (teamMinInput === null) return;
+    const teamMaxInput = await uiPrompt({
+      title: "Team Max Size",
+      message: "Maximum students in team:",
+      defaultValue: current.teamMaxSize || 4
+    });
+    if (teamMaxInput === null) return;
+    teamMinSize = Number.parseInt(teamMinInput, 10);
+    teamMaxSize = Number.parseInt(teamMaxInput, 10);
+    if (!Number.isFinite(teamMinSize) || !Number.isFinite(teamMaxSize) || teamMinSize < 2 || teamMaxSize < teamMinSize) {
+      alert("Invalid team min/max values");
+      return;
+    }
+  }
 
   const res = await fetch(`${API_BASE}/api/subevents/${id}`, {
     method: "PUT",
@@ -654,7 +728,9 @@ async function updateSubEvent() {
       volunteerLimit: Number(volunteerLimit),
       time,
       venue,
-      participationType
+      participationType,
+      teamMinSize,
+      teamMaxSize
     })
   });
   const data = await res.json();
@@ -773,6 +849,11 @@ if (deleteSubEventBtn) {
     deleteSubEvent();
   });
 }
+
+subEventTypeInputs.forEach((input) => {
+  input.addEventListener("change", syncSubEventTypeUI);
+});
+syncSubEventTypeUI();
 </script>
 </body>
 
