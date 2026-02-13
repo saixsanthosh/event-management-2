@@ -464,6 +464,57 @@ td {
     max-width: 100% !important;
 }
 
+/* ============================================
+   DASHBOARD LAYOUT HELPERS
+============================================ */
+.login-box.dashboard-shell > .login-left {
+    flex: 0 0 20% !important;
+    max-width: 20% !important;
+}
+
+.login-box.dashboard-shell > .login-right {
+    flex: 0 0 80% !important;
+    max-width: 80% !important;
+}
+
+.dashboard-main-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.dashboard-main-column,
+.dashboard-side-column {
+    min-width: 0;
+}
+
+.dashboard-side-column {
+    border-left: 1px solid var(--border-color);
+    padding-left: 20px;
+}
+
+.dashboard-side-column .form-header {
+    text-align: left;
+    margin-bottom: 18px;
+}
+
+.dashboard-side-scroll {
+    max-height: calc(100vh - 180px);
+    overflow: auto;
+    padding-right: 6px;
+}
+
+.login-box.split-20-80 > .login-left {
+    flex: 0 0 20% !important;
+    max-width: 20% !important;
+}
+
+.login-box.split-20-80 > .login-right {
+    flex: 0 0 80% !important;
+    max-width: 80% !important;
+}
+
 .form-header {
     margin-bottom: 40px;
     text-align: center;
@@ -728,6 +779,14 @@ td {
         min-height: auto;
     }
 
+    .login-box.dashboard-shell > .login-left,
+    .login-box.dashboard-shell > .login-right,
+    .login-box.split-20-80 > .login-left,
+    .login-box.split-20-80 > .login-right {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+    }
+
     .features-list {
         display: none;
     }
@@ -783,15 +842,31 @@ td {
     .login-container {
         width: 100%;
     }
+
+    .dashboard-main-layout {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .dashboard-side-column {
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        padding-left: 0;
+        padding-top: 20px;
+    }
+
+    .dashboard-side-scroll {
+        max-height: none;
+    }
 }
 
 @media (min-width: 901px) {
-    .login-box > .login-left[style*="max-width:25%"] {
+    .login-box:not(.dashboard-shell):not(.split-20-80) > .login-left[style*="max-width:25%"] {
         flex: 0 0 clamp(260px, 24vw, 360px) !important;
         max-width: clamp(260px, 24vw, 360px) !important;
     }
 
-    .login-box > .login-right[style*="max-width:75%"] {
+    .login-box:not(.dashboard-shell):not(.split-20-80) > .login-right[style*="max-width:75%"] {
         flex: 1 1 auto !important;
         max-width: none !important;
     }
