@@ -46,7 +46,7 @@ if (user.role !== "President") {
 
 <!-- MAIN CONTAINER -->
 <div class="login-container">
-  <div class="login-box dashboard-shell">
+  <div class="login-box">
 
     <!-- LEFT PANEL -->
     <div class="login-left" style="flex:0 0 25%;max-width:25%">
@@ -70,8 +70,7 @@ if (user.role !== "President") {
 
     <!-- RIGHT PANEL -->
     <div class="login-right" style="flex:0 0 75%;max-width:75%">
-      <div class="login-form-container dashboard-main-layout" style="max-width:100%">
-        <div class="dashboard-main-column">
+      <div class="login-form-container" style="max-width:100%">
 
         <!-- EVENT MANAGEMENT -->
         <div class="form-header">
@@ -149,6 +148,14 @@ if (user.role !== "President") {
           </a>
         </div>
 
+        <!-- PAYMENT REQUESTS -->
+        <div class="form-header">
+          <h2>Payment Requests</h2>
+          <p>Pending transaction verifications</p>
+        </div>
+
+        <div id="paymentRequests"></div>
+
         <!-- RECENT ACTIVITY -->
         <div class="form-header">
           <h2>Recent Activity</h2>
@@ -225,15 +232,7 @@ if (user.role !== "President") {
           <i class="fas fa-paper-plane"></i>
           <span>Send for Approval</span>
         </button>
-        </div>
 
-        <div class="dashboard-side-column">
-          <div class="form-header">
-            <h2>Payment Requests</h2>
-            <p>Pending transaction verifications</p>
-          </div>
-          <div id="paymentRequests" class="dashboard-side-scroll"></div>
-        </div>
       </div>
     </div>
 
