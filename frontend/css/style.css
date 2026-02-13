@@ -58,10 +58,8 @@ body {
     background: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     transition: background 0.3s ease;
 }
 
@@ -273,8 +271,8 @@ td {
 ============================================ */
 .theme-toggle {
     position: fixed;
-    top: 20px;
-    right: 20px;
+    top: max(16px, env(safe-area-inset-top));
+    right: max(16px, env(safe-area-inset-right));
     width: 50px;
     height: 50px;
     border-radius: 50%;
@@ -309,8 +307,8 @@ td {
 ============================================ */
 .nav-back-btn {
     position: fixed;
-    top: 20px;
-    left: 20px;
+    top: max(16px, env(safe-area-inset-top));
+    left: max(16px, env(safe-area-inset-left));
     width: 50px;
     height: 50px;
     border-radius: 50%;
@@ -339,19 +337,22 @@ td {
    LOGIN CONTAINER
 ============================================ */
 .login-container {
-    width: 100%;
-    max-width: 1000px;
-    padding: 20px;
+    width: 100vw;
+    min-height: 100vh;
+    max-width: none;
+    padding: 0;
+    display: flex;
     z-index: 10;
 }
 
 .login-box {
     display: flex;
+    width: 100%;
     background: var(--card-bg);
-    border-radius: 24px;
+    border-radius: 0;
     overflow: hidden;
-    box-shadow: 0 25px 50px -12px var(--shadow-color);
-    min-height: 600px;
+    box-shadow: none;
+    min-height: 100vh;
 }
 
 /* ============================================
@@ -359,8 +360,9 @@ td {
 ============================================ */
 .login-left {
     flex: 1;
+    min-width: 0;
     background: linear-gradient(135deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 100%);
-    padding: 60px 40px;
+    padding: clamp(40px, 5vw, 60px) clamp(24px, 3vw, 40px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -445,9 +447,10 @@ td {
 ============================================ */
 .login-right {
     flex: 1;
-    padding: 60px 50px;
+    min-width: 0;
+    padding: clamp(36px, 4vw, 60px) clamp(24px, 3.5vw, 50px);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     background: var(--card-bg);
 }
@@ -455,6 +458,10 @@ td {
 .login-form-container {
     width: 100%;
     max-width: 360px;
+}
+
+.login-right .login-form-container[style*="max-width:100%"] {
+    max-width: 100% !important;
 }
 
 .form-header {
@@ -707,8 +714,13 @@ td {
 @media (max-width: 900px) {
     .login-box {
         flex-direction: column;
-        max-width: 500px;
-        margin: 0 auto;
+        min-height: 100vh;
+    }
+
+    .login-box > .login-left[style*="max-width:25%"],
+    .login-box > .login-right[style*="max-width:75%"] {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
     }
 
     .login-left {
@@ -731,7 +743,8 @@ td {
 
 @media (max-width: 500px) {
     .login-container {
-        padding: 10px;
+        width: 100%;
+        padding: 0;
     }
 
     .login-right {
@@ -743,36 +756,73 @@ td {
     }
 
     .theme-toggle {
-        top: 10px;
-        right: 10px;
+        top: max(10px, env(safe-area-inset-top));
+        right: max(10px, env(safe-area-inset-right));
         width: 45px;
         height: 45px;
     }
 
     .nav-back-btn {
-        top: 10px;
-        left: 10px;
+        top: max(10px, env(safe-area-inset-top));
+        left: max(10px, env(safe-area-inset-left));
         width: 45px;
         height: 45px;
     }
 
     body {
         overflow: auto;
-        align-items: flex-start;
-        justify-content: flex-start;
     }
 
     .login-container {
         width: 100%;
         min-height: 100vh;
-        padding-bottom: 30px;
     }
 }
 
 @media (max-width: 1024px) {
-    body {
-        align-items: flex-start;
-        justify-content: flex-start;
+    .login-container {
+        width: 100%;
+    }
+}
+
+@media (min-width: 901px) {
+    .login-box > .login-left[style*="max-width:25%"] {
+        flex: 0 0 clamp(260px, 24vw, 360px) !important;
+        max-width: clamp(260px, 24vw, 360px) !important;
+    }
+
+    .login-box > .login-right[style*="max-width:75%"] {
+        flex: 1 1 auto !important;
+        max-width: none !important;
+    }
+
+    .login-right [style*="grid-template-columns:repeat(2,1fr)"],
+    .login-right [style*="grid-template-columns:repeat(2,minmax(0,1fr))"] {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    }
+
+    .login-right [style*="grid-template-columns:repeat(3,1fr)"],
+    .login-right [style*="grid-template-columns:repeat(3,minmax(0,1fr))"],
+    .login-right [style*="grid-template-columns:repeat(3,minmax(140px,1fr))"] {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+    }
+
+    .login-right [style*="grid-template-columns:repeat(4,1fr)"] {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+    }
+
+    .login-right [style*="grid-template-columns:repeat(5,minmax(120px,1fr))"] {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+    }
+}
+
+@media (max-width: 1200px) {
+    .login-right [style*="grid-template-columns:repeat(4"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .login-right [style*="grid-template-columns:repeat(5"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 }
 
@@ -782,6 +832,11 @@ td {
     }
 
     .login-right [style*="grid-template-columns:repeat(3"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    .login-right [style*="grid-template-columns:repeat(4"],
+    .login-right [style*="grid-template-columns:repeat(5"] {
         grid-template-columns: 1fr !important;
     }
 }
