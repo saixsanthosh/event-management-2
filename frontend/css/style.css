@@ -56,12 +56,38 @@ html {
 body {
     font-family: 'Poppins', sans-serif;
     background: var(--bg-primary);
+    color: var(--text-primary);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     transition: background 0.3s ease;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--text-primary);
+}
+
+p,
+label,
+small,
+li {
+    color: inherit;
+}
+
+a {
+    color: var(--accent-color);
+}
+
+strong,
+span {
+    color: inherit;
 }
 
 a,
@@ -136,6 +162,31 @@ textarea,
 select,
 option {
     text-transform: none;
+}
+
+input,
+textarea,
+select {
+    color: var(--text-primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+select,
+option {
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+    color: var(--text-secondary);
+    opacity: 1;
 }
 
 table,
