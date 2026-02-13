@@ -170,6 +170,12 @@ function clampInt(value, min, max, fallback = 0) {
   return Math.max(min, Math.min(max, num));
 }
 
+function normalizeParticipationType(value) {
+  const normalized = sanitizeString(value, 20).toLowerCase();
+  if (normalized === "team" || normalized === "teams") return "Team";
+  return "Individual";
+}
+
 function logAudit({ action, actor, role, details }) {
   const entry = {
     id: store.nextId("audit"),
@@ -232,6 +238,10 @@ function ensureEventFields(event) {
 
 function ensureSubEventFields(subEvent) {
   let changed = false;
+  if (subEvent.participationType !== "Individual" && subEvent.participationType !== "Team") {
+    subEvent.participationType = normalizeParticipationType(subEvent.participationType);
+    changed = true;
+  }
   if (!subEvent.results || typeof subEvent.results !== "object") {
     subEvent.results = {
       winner: "",
@@ -752,6 +762,7 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
   const date = sanitizeString(req.body.date, 40);
   const time = sanitizeString(req.body.time, 20);
   const venue = sanitizeString(req.body.venue, 120);
+  const participationType = normalizeParticipationType(req.body.participationType);
 
   if (!eventId || !name) {
     return res.json({ success: false, message: "Missing fields" });
@@ -775,6 +786,7 @@ app.post("/api/subevents", rateLimit(60), verifyToken, allowRoles("President"), 
     date: date || "",
     time: time || "",
     venue: venue || "",
+    participationType,
     results: {
       winner: "",
       runnerUp: "",
@@ -845,6 +857,9 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
   const date = req.body.date !== undefined ? sanitizeString(req.body.date, 40) : undefined;
   const time = req.body.time !== undefined ? sanitizeString(req.body.time, 20) : undefined;
   const venue = req.body.venue !== undefined ? sanitizeString(req.body.venue, 120) : undefined;
+  const participationType = req.body.participationType !== undefined
+    ? normalizeParticipationType(req.body.participationType)
+    : undefined;
 
   const subEvents = store.getSubEvents();
   const subEvent = subEvents.find(se => se.id === id);
@@ -861,6 +876,7 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
   }
   if (time !== undefined) subEvent.time = time;
   if (venue !== undefined) subEvent.venue = venue;
+  if (participationType !== undefined) subEvent.participationType = participationType;
 
   store.saveSubEvents(subEvents);
   logAudit({

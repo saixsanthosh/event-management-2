@@ -167,6 +167,14 @@
                                 <input type="text" inputmode="numeric" placeholder="Fee" id="subEventFee" title="Registration Fee" aria-label="Registration Fee" style="padding-left:44px;padding-right:16px;min-height:56px;font-size:1rem;">
                             </div>
 
+                            <div class="input-group">
+                                <div class="input-icon"><i class="fas fa-user-group"></i></div>
+                                <select id="subEventParticipationType" title="Participation Type" aria-label="Participation Type" style="width:100%;padding-left:44px;padding-right:16px;min-height:56px;font-size:1rem;border:2px solid var(--border-color);border-radius:12px;background:var(--input-bg);color:var(--text-primary)">
+                                    <option value="Individual">Individual</option>
+                                    <option value="Team">Team</option>
+                                </select>
+                            </div>
+
                         </div>
 
                         <div style="margin-top:20px;display:flex;gap:15px">
@@ -207,6 +215,7 @@ const subEventVenueInput = document.getElementById("subEventVenue");
 const subEventCoordinatorsInput = document.getElementById("subEventCoordinators");
 const subEventVolunteersInput = document.getElementById("subEventVolunteers");
 const subEventFeeInput = document.getElementById("subEventFee");
+const subEventParticipationTypeInput = document.getElementById("subEventParticipationType");
 
 function uiPrompt({ title, message, defaultValue = "", placeholder = "" }) {
   return new Promise((resolve) => {
@@ -289,6 +298,12 @@ function uiConfirm({ title, message }) {
 
 function getToken() {
   return localStorage.getItem("token");
+}
+
+function normalizeSubEventType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "team" || normalized === "teams") return "Team";
+  return "Individual";
 }
 
 async function fetchEvents() {
@@ -406,6 +421,7 @@ async function createSubEvent() {
   const coordinatorLimit = subEventCoordinatorsInput.value;
   const volunteerLimit = subEventVolunteersInput.value;
   const fee = subEventFeeInput.value;
+  const participationType = normalizeSubEventType(subEventParticipationTypeInput.value);
 
   if (!name) {
     alert("Sub-event name required");
@@ -430,7 +446,8 @@ async function createSubEvent() {
         fee: fee || 0,
         date: "",
         time,
-        venue
+        venue,
+        participationType
       })
     });
 
@@ -447,6 +464,7 @@ async function createSubEvent() {
     subEventCoordinatorsInput.value = "";
     subEventVolunteersInput.value = "";
     subEventFeeInput.value = "";
+    subEventParticipationTypeInput.value = "Individual";
   } catch (err) {
     console.error("Fetch error:", err);
     alert("Backend not reachable");
@@ -616,6 +634,13 @@ async function updateSubEvent() {
     defaultValue: current.volunteerLimit ?? 0
   });
   if (volunteerLimit === null) return;
+  const participationTypeInput = await uiPrompt({
+    title: "Participation Type",
+    message: "Type (Individual/Team):",
+    defaultValue: current.participationType || "Individual"
+  });
+  if (participationTypeInput === null) return;
+  const participationType = normalizeSubEventType(participationTypeInput);
 
   const res = await fetch(`${API_BASE}/api/subevents/${id}`, {
     method: "PUT",
@@ -628,7 +653,8 @@ async function updateSubEvent() {
       coordinatorLimit: Number(coordinatorLimit),
       volunteerLimit: Number(volunteerLimit),
       time,
-      venue
+      venue,
+      participationType
     })
   });
   const data = await res.json();
