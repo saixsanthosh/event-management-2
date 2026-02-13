@@ -272,6 +272,9 @@ function ensureSubEventFields(subEvent) {
       winner: "",
       runnerUp: "",
       thirdPlace: "",
+      participants: [],
+      participantsUpdatedAt: null,
+      participantsUpdatedBy: null,
       updatedAt: null,
       updatedBy: null
     };
@@ -287,6 +290,33 @@ function ensureSubEventFields(subEvent) {
     }
     if (typeof subEvent.results.thirdPlace !== "string") {
       subEvent.results.thirdPlace = sanitizeString(subEvent.results.thirdPlace, 120);
+      changed = true;
+    }
+    if (!Array.isArray(subEvent.results.participants)) {
+      subEvent.results.participants = [];
+      changed = true;
+    } else {
+      const normalizedParticipants = subEvent.results.participants
+        .filter(item => item && typeof item === "object")
+        .map((item) => ({
+          id: toSafeInt(item.id) || null,
+          name: sanitizeString(item.name, 120),
+          college: sanitizeString(item.college, 120),
+          paymentStatus: sanitizeString(item.paymentStatus, 20),
+          attendance: Boolean(item.attendance)
+        }))
+        .filter((item) => item.name);
+      if (JSON.stringify(normalizedParticipants) !== JSON.stringify(subEvent.results.participants)) {
+        subEvent.results.participants = normalizedParticipants;
+        changed = true;
+      }
+    }
+    if (subEvent.results.participantsUpdatedAt !== null && typeof subEvent.results.participantsUpdatedAt !== "string") {
+      subEvent.results.participantsUpdatedAt = null;
+      changed = true;
+    }
+    if (subEvent.results.participantsUpdatedBy !== null && typeof subEvent.results.participantsUpdatedBy !== "string") {
+      subEvent.results.participantsUpdatedBy = null;
       changed = true;
     }
     if (subEvent.results.updatedAt !== null && typeof subEvent.results.updatedAt !== "string") {
@@ -970,10 +1000,21 @@ app.put("/api/subevents/:id/results", rateLimit(60), verifyToken, allowRoles("Co
     return res.json({ success: false, message: "Enter at least one result field" });
   }
 
+  const existingParticipants = Array.isArray(subEvent.results.participants) ? subEvent.results.participants : [];
+  const participantsUpdatedAt = typeof subEvent.results.participantsUpdatedAt === "string"
+    ? subEvent.results.participantsUpdatedAt
+    : null;
+  const participantsUpdatedBy = typeof subEvent.results.participantsUpdatedBy === "string"
+    ? subEvent.results.participantsUpdatedBy
+    : null;
+
   subEvent.results = {
     winner,
     runnerUp,
     thirdPlace,
+    participants: existingParticipants,
+    participantsUpdatedAt,
+    participantsUpdatedBy,
     updatedAt: new Date().toISOString(),
     updatedBy: `${req.user.role}#${req.user.id}`
   };
@@ -987,6 +1028,54 @@ app.put("/api/subevents/:id/results", rateLimit(60), verifyToken, allowRoles("Co
   });
 
   res.json({ success: true, results: subEvent.results, subEvent, event });
+});
+
+/* =========================
+   PUBLISH ATTENDED PARTICIPANTS TO RESULT LIST (Coordinator/President)
+========================= */
+app.put("/api/subevents/:id/participants", rateLimit(60), verifyToken, allowRoles("Coordinator", "President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
+
+  const subEvents = store.getSubEvents();
+  const subEvent = subEvents.find((se) => se.id === id);
+  if (!subEvent) return res.status(404).json({ success: false, message: "Sub-event not found" });
+  ensureSubEventFields(subEvent);
+
+  const attended = store.getRegistrations()
+    .filter((reg) => reg.subEventId === id && reg.attendance)
+    .map((reg) => ({
+      id: reg.id,
+      name: sanitizeString(reg.name, 120),
+      college: sanitizeString(reg.college, 120),
+      paymentStatus: sanitizeString(reg.paymentStatus, 20),
+      attendance: true
+    }))
+    .filter((participant) => participant.name);
+
+  if (attended.length === 0) {
+    return res.json({ success: false, message: "No attended participants found to submit" });
+  }
+
+  subEvent.results = {
+    winner: sanitizeString(subEvent.results.winner, 120),
+    runnerUp: sanitizeString(subEvent.results.runnerUp, 120),
+    thirdPlace: sanitizeString(subEvent.results.thirdPlace, 120),
+    participants: attended,
+    participantsUpdatedAt: new Date().toISOString(),
+    participantsUpdatedBy: `${req.user.role}#${req.user.id}`,
+    updatedAt: subEvent.results.updatedAt || null,
+    updatedBy: subEvent.results.updatedBy || null
+  };
+
+  store.saveSubEvents(subEvents);
+  logAudit({
+    action: "Publish Sub-Event Participants",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Sub-event ${subEvent.id} published participants count ${attended.length}`
+  });
+  res.json({ success: true, count: attended.length, subEvent });
 });
 
 /* =========================

@@ -124,7 +124,13 @@ if (user.role !== "Coordinator") {
 
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
                         <div style="font-size:1rem;color:var(--text-primary);font-weight:600">Participants</div>
-                        <div style="font-size:0.82rem;color:var(--text-muted)">Use attendance checkbox or delete button to update list</div>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+                            <div style="font-size:0.82rem;color:var(--text-muted)">Use attendance checkbox or delete button to update list</div>
+                            <button class="login-btn" id="submitAttendanceBtn" type="button" style="width:auto;padding:10px 14px">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Submit Attendance</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div style="overflow-x:auto;max-height:360px;overflow-y:auto;padding-right:6px">
@@ -212,6 +218,7 @@ if (user.role !== "Coordinator") {
   const showAttendanceBtn = document.getElementById("showAttendanceBtn");
   const showResultsBtn = document.getElementById("showResultsBtn");
   const offlineAddForm = document.getElementById("offlineAddForm");
+  const submitAttendanceBtn = document.getElementById("submitAttendanceBtn");
   const publishedResultsBox = document.getElementById("publishedResultsBox");
   const resultParticipantsList = document.getElementById("resultParticipantsList");
   const offlineName = document.getElementById("offlineName");
@@ -285,13 +292,18 @@ if (user.role !== "Coordinator") {
       `;
   }
 
-  function renderResultParticipants(registrations) {
-      if (!Array.isArray(registrations) || registrations.length === 0) {
+  function renderResultParticipants(participants) {
+      const list = Array.isArray(participants) ? participants : [];
+      if (list.length === 0) {
           resultParticipantsList.innerHTML = `<div style="color:var(--text-muted)">No participants yet</div>`;
           return;
       }
-      resultParticipantsList.innerHTML = registrations
-          .map((r, index) => `<div style="padding:6px 0;border-bottom:1px solid rgba(102,126,234,0.15)">${index + 1}. ${esc(r.name)} <span style="color:var(--text-muted)">(${esc(r.college || "-")})</span></div>`)
+      resultParticipantsList.innerHTML = list
+          .map((participant, index) => {
+              const name = participant && typeof participant === "object" ? participant.name : participant;
+              const college = participant && typeof participant === "object" ? participant.college : "";
+              return `<div style="padding:6px 0;border-bottom:1px solid rgba(102,126,234,0.15)">${index + 1}. ${esc(name || "-")} <span style="color:var(--text-muted)">(${esc(college || "-")})</span></div>`;
+          })
           .join("");
   }
 
@@ -324,6 +336,8 @@ if (user.role !== "Coordinator") {
           hintEl.textContent = "Results can be updated only when event status is Completed.";
       }
       renderPublishedResults(subEvent || {});
+      const publishedParticipants = results && Array.isArray(results.participants) ? results.participants : [];
+      renderResultParticipants(publishedParticipants);
   }
 
   async function updateAttendance(registrationId, attendance) {
@@ -388,7 +402,6 @@ if (user.role !== "Coordinator") {
   function renderStudents(registrations) {
       listEl.innerHTML = "";
       currentRegistrations = Array.isArray(registrations) ? registrations : [];
-      renderResultParticipants(currentRegistrations);
 
       if (currentRegistrations.length === 0) {
           listEl.innerHTML = `
@@ -428,6 +441,49 @@ if (user.role !== "Coordinator") {
   async function loadRegistrations(subEventId) {
       const registrations = await fetchJSON(`${API_BASE}/api/registrations/${subEventId}`);
       renderStudents(registrations);
+  }
+
+  async function submitAttendanceParticipants() {
+      if (!currentSubEvent || !currentSubEvent.id) {
+          alert("No sub-event selected");
+          return;
+      }
+      const attendedCount = currentRegistrations.filter((item) => Boolean(item.attendance)).length;
+      if (attendedCount === 0) {
+          alert("Mark attendance for at least one participant before submitting.");
+          return;
+      }
+
+      const confirmed = await showConfirm({
+          title: "Submit Attendance",
+          message: `Submit ${attendedCount} attended participants to Event Results list?`
+      });
+      if (!confirmed) return;
+
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+
+      try {
+          const data = await fetchJSON(`${API_BASE}/api/subevents/${currentSubEvent.id}/participants`, {
+              method: "PUT",
+              headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`
+              }
+          });
+          if (!data.success) {
+              alert(data.message || "Failed to submit attendance");
+              return;
+          }
+          currentSubEvent = data.subEvent || currentSubEvent;
+          setResultEditorState(currentEvent, currentSubEvent);
+          alert(`Attendance submitted. ${data.count} participants published to event results.`);
+      } catch (err) {
+          alert(err.message || "Failed to submit attendance");
+      }
   }
 
   async function saveSubEventResults() {
@@ -604,6 +660,7 @@ if (user.role !== "Coordinator") {
   showResultsBtn.addEventListener("click", () => setActivePanel("results"));
   saveResultsBtn.addEventListener("click", saveSubEventResults);
   offlineAddForm.addEventListener("submit", addManualParticipant);
+  submitAttendanceBtn.addEventListener("click", submitAttendanceParticipants);
 
   setResultEditorState(null, null);
   renderStudents([]);
