@@ -520,6 +520,61 @@ td {
     box-shadow: 0 6px 14px rgba(102, 126, 234, 0.25);
 }
 
+.panel-switch {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.panel-switch-btn {
+    width: auto;
+    min-width: 180px;
+    padding: 12px 16px;
+    font-size: 0.92rem;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--input-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.panel-switch-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+}
+
+.panel-switch-btn.active {
+    border-color: transparent;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 100%);
+    box-shadow: 0 10px 22px rgba(102, 126, 234, 0.25);
+}
+
+.content-panel {
+    display: block;
+}
+
+.content-panel.hidden {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .panel-switch {
+        gap: 8px;
+    }
+
+    .panel-switch-btn {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+}
+
 .input-icon {
     position: absolute;
     left: 18px;

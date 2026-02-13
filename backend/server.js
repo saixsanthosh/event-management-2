@@ -1083,9 +1083,10 @@ app.post("/api/register", rateLimit(40), (req, res) => {
     const teamId = `TEAM-${subEventId}-${Date.now().toString(36)}-${Math.floor(100 + Math.random() * 900)}`;
     const resolvedTeamName = teamName || `Team ${teamId.slice(-3)}`;
     const created = [];
+    let nextRegistrationId = registrations.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
     normalizedMembers.forEach((member, index) => {
       const newReg = {
-        id: store.nextId("registrations"),
+        id: nextRegistrationId++,
         name: member.name,
         college: member.college,
         department: member.department || "",
@@ -1175,6 +1176,142 @@ app.get("/api/registrations/:subEventId", (req, res) => {
   if (!subEventId) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
   const list = store.getRegistrations().filter(r => r.subEventId === subEventId);
   res.json(list);
+});
+
+/* =========================
+   ADD OFFLINE REGISTRATION (Coordinator/President)
+========================= */
+app.post("/api/registrations/manual", rateLimit(40), verifyToken, allowRoles("Coordinator", "President"), (req, res) => {
+  const subEventId = toSafeInt(req.body.subEventId);
+  const name = sanitizeString(req.body.name, 120);
+  const college = sanitizeString(req.body.college, 120);
+  const department = sanitizeString(req.body.department, 120);
+  const email = sanitizeString(req.body.email, 120);
+  const mobile = sanitizeString(req.body.mobile, 20);
+  const paymentStatusRaw = sanitizeString(req.body.paymentStatus, 20);
+  const paymentStatus = ["Pending", "Paid", "Rejected"].includes(paymentStatusRaw) ? paymentStatusRaw : "Pending";
+
+  if (!subEventId || !name || !college || !department || !email || !mobile) {
+    return res.json({ success: false, message: "All fields required" });
+  }
+  if (!isValidEmail(email)) {
+    return res.json({ success: false, message: "Invalid email" });
+  }
+  if (!isValidPhone(mobile)) {
+    return res.json({ success: false, message: "Invalid mobile number" });
+  }
+
+  const subEvents = store.getSubEvents();
+  const subEvent = subEvents.find(se => se.id === subEventId);
+  if (!subEvent) {
+    return res.status(404).json({ success: false, message: "Sub-event not found" });
+  }
+  let subEventChanged = false;
+  if (ensureSubEventFields(subEvent)) subEventChanged = true;
+  if (subEventChanged) store.saveSubEvents(subEvents);
+
+  const registrations = store.getRegistrations();
+  const exists = registrations.find(
+    (reg) => reg.subEventId === subEventId && String(reg.email || "").toLowerCase() === email.toLowerCase()
+  );
+  if (exists) {
+    return res.json({ success: false, message: "Student already registered for this sub-event" });
+  }
+
+  const newReg = {
+    id: store.nextId("registrations"),
+    name,
+    college,
+    department,
+    email,
+    mobile,
+    subEventId,
+    transactionId: "",
+    paymentStatus,
+    attendance: false
+  };
+
+  if (subEvent.participationType === "Team") {
+    const teamName = sanitizeString(req.body.teamName, 120) || `Team-${subEventId}`;
+    const teamId = sanitizeString(req.body.teamId, 80) || `MANUAL-${subEventId}-${Date.now().toString(36)}`;
+    newReg.teamName = teamName;
+    newReg.teamId = teamId;
+    newReg.teamSize = 1;
+    newReg.isTeamCaptain = false;
+    newReg.memberIndex = 1;
+  }
+
+  registrations.push(newReg);
+  store.saveRegistrations(registrations);
+  logAudit({
+    action: "Manual Registration",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Registration ${newReg.id} for sub-event ${newReg.subEventId}`
+  });
+  res.json({ success: true, registration: newReg });
+});
+
+/* =========================
+   UPDATE ATTENDANCE (Coordinator/President)
+========================= */
+app.put("/api/registrations/:id/attendance", rateLimit(60), verifyToken, allowRoles("Coordinator", "President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid registration id" });
+
+  const attendance = Boolean(req.body.attendance);
+  const registrations = store.getRegistrations();
+  const reg = registrations.find((item) => item.id === id);
+  if (!reg) return res.status(404).json({ success: false, message: "Registration not found" });
+
+  reg.attendance = attendance;
+  store.saveRegistrations(registrations);
+  logAudit({
+    action: "Update Attendance",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Registration ${reg.id} attendance ${attendance ? "present" : "absent"}`
+  });
+  res.json({ success: true, registration: reg });
+});
+
+/* =========================
+   DELETE REGISTRATION (Coordinator/President)
+========================= */
+app.delete("/api/registrations/:id", rateLimit(30), verifyToken, allowRoles("Coordinator", "President"), (req, res) => {
+  const id = toSafeInt(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: "Invalid registration id" });
+
+  const registrations = store.getRegistrations();
+  const index = registrations.findIndex((item) => item.id === id);
+  if (index === -1) return res.status(404).json({ success: false, message: "Registration not found" });
+
+  const [removed] = registrations.splice(index, 1);
+  store.saveRegistrations(registrations);
+
+  // Keep payment data consistent when a linked registration is deleted.
+  const payments = store.getPayments();
+  let paymentsChanged = false;
+  const replacement = removed && removed.transactionId
+    ? registrations.find((item) => item.transactionId === removed.transactionId)
+    : null;
+  payments.forEach((payment) => {
+    if (Number(payment.registrationId) === id) {
+      payment.registrationId = replacement ? replacement.id : null;
+      paymentsChanged = true;
+    }
+  });
+  if (paymentsChanged) {
+    store.savePayments(payments);
+  }
+
+  logAudit({
+    action: "Delete Registration",
+    actor: req.user.id,
+    role: req.user.role,
+    details: `Registration ${id} removed from sub-event ${removed ? removed.subEventId : ""}`
+  });
+  res.json({ success: true, message: "Registration deleted" });
 });
 
 /* =========================

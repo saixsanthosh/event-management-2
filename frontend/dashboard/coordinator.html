@@ -83,52 +83,110 @@ if (user.role !== "Coordinator") {
                     <p id="assignedSubEventLabel">Loading...</p>
                 </div>
 
-                <div style="border:2px dashed var(--border-color);padding:18px;border-radius:16px;margin-bottom:20px;background:var(--input-bg)">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-                        <div style="font-size:1rem;color:var(--text-primary);font-weight:600">
-                            Sub-event Results
-                        </div>
-                        <div id="resultEventStatus" style="font-size:0.82rem;color:var(--text-secondary);border:1px solid var(--border-color);padding:6px 10px;border-radius:999px">
-                            Status: -
-                        </div>
-                    </div>
-
-                    <div style="display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:12px;margin-bottom:12px">
-                        <div class="input-group" style="margin-bottom:0">
-                            <input id="winnerInput" placeholder="Winner" />
-                        </div>
-                        <div class="input-group" style="margin-bottom:0">
-                            <input id="runnerUpInput" placeholder="Runner-up" />
-                        </div>
-                        <div class="input-group" style="margin-bottom:0">
-                            <input id="thirdPlaceInput" placeholder="Third Place" />
-                        </div>
-                    </div>
-
-                    <p id="resultHint" style="color:var(--text-muted);font-size:0.82rem;margin:0 0 12px 0">
-                        Results can be updated only when event status is Completed.
-                    </p>
-
-                    <button class="login-btn" id="saveResultsBtn" style="width:auto;padding:12px 18px">
+                <div class="panel-switch">
+                    <button id="showAttendanceBtn" class="panel-switch-btn active" type="button">
+                        <i class="fas fa-clipboard-check"></i>
+                        <span>Attendance & Payments</span>
+                    </button>
+                    <button id="showResultsBtn" class="panel-switch-btn" type="button">
                         <i class="fas fa-trophy"></i>
-                        <span>Save Results</span>
+                        <span>Event Results</span>
                     </button>
                 </div>
 
-                <!-- TABLE -->
-                <div style="overflow-x:auto;max-height:320px;overflow-y:auto;padding-right:6px">
-                    <table style="width:100%;border-collapse:collapse;color:var(--text-primary)">
-                        <thead>
-                            <tr style="background:var(--input-bg)">
-                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Name</th>
-                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">College</th>
-                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Payment</th>
-                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">QR</th>
-                                <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Attendance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="studentList"></tbody>
-                    </table>
+                <div id="attendancePanel" class="content-panel">
+                    <div style="border:2px dashed var(--border-color);padding:18px;border-radius:16px;margin-bottom:20px;background:var(--input-bg)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+                            <div style="font-size:1rem;color:var(--text-primary);font-weight:600">Add Offline Participant</div>
+                            <div style="font-size:0.82rem;color:var(--text-muted)">For late or offline enrollments</div>
+                        </div>
+                        <form id="offlineAddForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+                            <div class="input-group" style="margin-bottom:0"><input id="offlineName" placeholder="Full Name" required /></div>
+                            <div class="input-group" style="margin-bottom:0"><input id="offlineCollege" placeholder="College Name" required /></div>
+                            <div class="input-group" style="margin-bottom:0"><input id="offlineDepartment" placeholder="Department / Class" required /></div>
+                            <div class="input-group" style="margin-bottom:0"><input id="offlineEmail" type="email" placeholder="Email ID" required /></div>
+                            <div class="input-group" style="margin-bottom:0"><input id="offlineMobile" type="tel" placeholder="Mobile Number" required /></div>
+                            <div class="input-group" style="margin-bottom:0">
+                                <select id="offlinePaymentStatus" style="width:100%;padding:18px;border-radius:12px;border:2px solid var(--border-color);background:var(--card-bg);color:var(--text-primary)">
+                                    <option value="Pending">Payment: Pending</option>
+                                    <option value="Paid">Payment: Paid</option>
+                                    <option value="Rejected">Payment: Rejected</option>
+                                </select>
+                            </div>
+                            <div style="grid-column:1/-1;display:flex;justify-content:flex-start">
+                                <button class="login-btn" type="submit" style="width:auto;padding:12px 18px">
+                                    <i class="fas fa-user-plus"></i>
+                                    <span>Add Participant</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+                        <div style="font-size:1rem;color:var(--text-primary);font-weight:600">Participants</div>
+                        <div style="font-size:0.82rem;color:var(--text-muted)">Use attendance checkbox or delete button to update list</div>
+                    </div>
+
+                    <div style="overflow-x:auto;max-height:360px;overflow-y:auto;padding-right:6px">
+                        <table style="width:100%;border-collapse:collapse;color:var(--text-primary)">
+                            <thead>
+                                <tr style="background:var(--input-bg)">
+                                    <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Name</th>
+                                    <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">College</th>
+                                    <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Payment</th>
+                                    <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">QR</th>
+                                    <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Attendance</th>
+                                    <th style="padding:12px;border:1px solid var(--border-color);color:var(--text-primary)">Delete</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentList"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="resultsPanel" class="content-panel hidden">
+                    <div style="border:2px dashed var(--border-color);padding:18px;border-radius:16px;margin-bottom:16px;background:var(--input-bg)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+                            <div style="font-size:1rem;color:var(--text-primary);font-weight:600">
+                                Sub-event Results
+                            </div>
+                            <div id="resultEventStatus" style="font-size:0.82rem;color:var(--text-secondary);border:1px solid var(--border-color);padding:6px 10px;border-radius:999px">
+                                Status: -
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+                            <div class="input-group" style="margin-bottom:0">
+                                <input id="winnerInput" placeholder="Winner" />
+                            </div>
+                            <div class="input-group" style="margin-bottom:0">
+                                <input id="runnerUpInput" placeholder="Runner-up" />
+                            </div>
+                            <div class="input-group" style="margin-bottom:0">
+                                <input id="thirdPlaceInput" placeholder="Third Place" />
+                            </div>
+                        </div>
+
+                        <p id="resultHint" style="color:var(--text-muted);font-size:0.82rem;margin:0 0 12px 0">
+                            Results can be updated only when event status is Completed.
+                        </p>
+
+                        <button class="login-btn" id="saveResultsBtn" style="width:auto;padding:12px 18px">
+                            <i class="fas fa-trophy"></i>
+                            <span>Save Results</span>
+                        </button>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+                        <div style="border:1px solid var(--border-color);border-radius:14px;padding:14px;background:var(--card-bg)">
+                            <div style="font-size:0.95rem;color:var(--text-primary);font-weight:700;margin-bottom:8px">Event Winners</div>
+                            <div id="publishedResultsBox" style="color:var(--text-secondary);font-size:0.9rem;line-height:1.6"></div>
+                        </div>
+                        <div style="border:1px solid var(--border-color);border-radius:14px;padding:14px;background:var(--card-bg)">
+                            <div style="font-size:0.95rem;color:var(--text-primary);font-weight:700;margin-bottom:8px">Participants</div>
+                            <div id="resultParticipantsList" style="max-height:220px;overflow:auto;padding-right:4px;color:var(--text-secondary);font-size:0.9rem;line-height:1.5"></div>
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -141,11 +199,6 @@ if (user.role !== "Coordinator") {
 <script src="../js/main.js"></script>
 
 <script>
-  // Allow page scroll when content exceeds viewport
-  document.addEventListener("DOMContentLoaded", () => {
-      document.body.style.overflow = "auto";
-  });
-
   const labelEl = document.getElementById("assignedSubEventLabel");
   const listEl = document.getElementById("studentList");
   const statusEl = document.getElementById("resultEventStatus");
@@ -154,8 +207,47 @@ if (user.role !== "Coordinator") {
   const runnerUpInput = document.getElementById("runnerUpInput");
   const thirdPlaceInput = document.getElementById("thirdPlaceInput");
   const saveResultsBtn = document.getElementById("saveResultsBtn");
+  const attendancePanel = document.getElementById("attendancePanel");
+  const resultsPanel = document.getElementById("resultsPanel");
+  const showAttendanceBtn = document.getElementById("showAttendanceBtn");
+  const showResultsBtn = document.getElementById("showResultsBtn");
+  const offlineAddForm = document.getElementById("offlineAddForm");
+  const publishedResultsBox = document.getElementById("publishedResultsBox");
+  const resultParticipantsList = document.getElementById("resultParticipantsList");
+  const offlineName = document.getElementById("offlineName");
+  const offlineCollege = document.getElementById("offlineCollege");
+  const offlineDepartment = document.getElementById("offlineDepartment");
+  const offlineEmail = document.getElementById("offlineEmail");
+  const offlineMobile = document.getElementById("offlineMobile");
+  const offlinePaymentStatus = document.getElementById("offlinePaymentStatus");
+
   let currentEvent = null;
   let currentSubEvent = null;
+  let currentRegistrations = [];
+
+  function showConfirm(options) {
+      if (window.uiConfirm) return window.uiConfirm(options);
+      return Promise.resolve(window.confirm(options && options.message ? options.message : "Are you sure?"));
+  }
+
+  function showPrompt(options) {
+      if (window.uiPrompt) return window.uiPrompt(options);
+      return Promise.resolve(
+          window.prompt(
+              options && options.message ? options.message : "Enter value",
+              options && options.defaultValue != null ? String(options.defaultValue) : ""
+          )
+      );
+  }
+
+  function esc(value) {
+      return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+  }
 
   async function fetchJSON(url, options = {}) {
       const res = await fetch(url, options);
@@ -168,6 +260,39 @@ if (user.role !== "Coordinator") {
 
   function getToken() {
       return localStorage.getItem("token");
+  }
+
+  function setActivePanel(panel) {
+      const showAttendance = panel === "attendance";
+      attendancePanel.classList.toggle("hidden", !showAttendance);
+      resultsPanel.classList.toggle("hidden", showAttendance);
+      showAttendanceBtn.classList.toggle("active", showAttendance);
+      showResultsBtn.classList.toggle("active", !showAttendance);
+  }
+
+  function renderPublishedResults(subEvent) {
+      const results = subEvent && subEvent.results && typeof subEvent.results === "object" ? subEvent.results : {};
+      const winner = results.winner || "-";
+      const runnerUp = results.runnerUp || "-";
+      const thirdPlace = results.thirdPlace || "-";
+      const updatedAt = results.updatedAt ? new Date(results.updatedAt).toLocaleString() : "-";
+      const updatedBy = results.updatedBy || "-";
+      publishedResultsBox.innerHTML = `
+        <div><strong>Winner:</strong> ${esc(winner)}</div>
+        <div><strong>Runner-up:</strong> ${esc(runnerUp)}</div>
+        <div><strong>Third Place:</strong> ${esc(thirdPlace)}</div>
+        <div style="margin-top:8px;color:var(--text-muted);font-size:0.82rem">Updated: ${esc(updatedAt)} by ${esc(updatedBy)}</div>
+      `;
+  }
+
+  function renderResultParticipants(registrations) {
+      if (!Array.isArray(registrations) || registrations.length === 0) {
+          resultParticipantsList.innerHTML = `<div style="color:var(--text-muted)">No participants yet</div>`;
+          return;
+      }
+      resultParticipantsList.innerHTML = registrations
+          .map((r, index) => `<div style="padding:6px 0;border-bottom:1px solid rgba(102,126,234,0.15)">${index + 1}. ${esc(r.name)} <span style="color:var(--text-muted)">(${esc(r.college || "-")})</span></div>`)
+          .join("");
   }
 
   function setResultEditorState(event, subEvent) {
@@ -198,6 +323,111 @@ if (user.role !== "Coordinator") {
       } else {
           hintEl.textContent = "Results can be updated only when event status is Completed.";
       }
+      renderPublishedResults(subEvent || {});
+  }
+
+  async function updateAttendance(registrationId, attendance) {
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+      try {
+          await fetchJSON(`${API_BASE}/api/registrations/${registrationId}/attendance`, {
+              method: "PUT",
+              headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify({ attendance })
+          });
+      } catch (err) {
+          alert(err.message || "Failed to update attendance");
+      }
+  }
+
+  async function deleteRegistration(registrationId) {
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+      const confirmed = await showConfirm({
+          title: "Delete Participant",
+          message: "Delete this participant from the sub-event?"
+      });
+      if (!confirmed) return;
+      try {
+          await fetchJSON(`${API_BASE}/api/registrations/${registrationId}`, {
+              method: "DELETE",
+              headers: { "Authorization": `Bearer ${token}` }
+          });
+          await loadRegistrations(currentSubEvent.id);
+      } catch (err) {
+          alert(err.message || "Failed to delete participant");
+      }
+  }
+
+  function attachTableActions() {
+      listEl.querySelectorAll('input[data-action="attendance"]').forEach((checkbox) => {
+          checkbox.addEventListener("change", async (e) => {
+              const id = Number.parseInt(e.currentTarget.dataset.id, 10);
+              if (!Number.isFinite(id)) return;
+              await updateAttendance(id, Boolean(e.currentTarget.checked));
+          });
+      });
+      listEl.querySelectorAll('button[data-action="delete-participant"]').forEach((button) => {
+          button.addEventListener("click", async (e) => {
+              const id = Number.parseInt(e.currentTarget.dataset.id, 10);
+              if (!Number.isFinite(id)) return;
+              await deleteRegistration(id);
+          });
+      });
+  }
+
+  function renderStudents(registrations) {
+      listEl.innerHTML = "";
+      currentRegistrations = Array.isArray(registrations) ? registrations : [];
+      renderResultParticipants(currentRegistrations);
+
+      if (currentRegistrations.length === 0) {
+          listEl.innerHTML = `
+            <tr>
+              <td colspan="6" style="padding:12px;border:1px solid var(--border-color);text-align:center;color:var(--text-muted)">
+                No registrations yet
+              </td>
+            </tr>
+          `;
+          return;
+      }
+
+      currentRegistrations.forEach((r) => {
+          const payment = r.paymentStatus || "Pending";
+          const qr = payment === "Paid" ? "Generated" : "Not Generated";
+          listEl.innerHTML += `
+              <tr>
+                  <td style="padding:10px;border:1px solid var(--border-color)">${esc(r.name)}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color)">${esc(r.college)}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color);color:${payment === 'Paid' ? '#38a169' : '#e53e3e'}">${esc(payment)}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color)">${esc(qr)}</td>
+                  <td style="padding:10px;border:1px solid var(--border-color);text-align:center">
+                      <input type="checkbox" data-action="attendance" data-id="${r.id}" ${r.attendance ? "checked" : ""}>
+                  </td>
+                  <td style="padding:10px;border:1px solid var(--border-color);text-align:center">
+                      <button class="login-btn" data-action="delete-participant" data-id="${r.id}" style="width:auto;padding:8px 12px;background:linear-gradient(135deg,#fc8181,#f56565)">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete</span>
+                      </button>
+                  </td>
+              </tr>
+          `;
+      });
+      attachTableActions();
+  }
+
+  async function loadRegistrations(subEventId) {
+      const registrations = await fetchJSON(`${API_BASE}/api/registrations/${subEventId}`);
+      renderStudents(registrations);
   }
 
   async function saveSubEventResults() {
@@ -219,7 +449,6 @@ if (user.role !== "Coordinator") {
       };
 
       try {
-          // Refresh event + sub-event before save to avoid stale status/results checks.
           const latestSubEvent = await fetchJSON(`${API_BASE}/api/subevents/detail/${currentSubEvent.id}`);
           currentSubEvent = latestSubEvent || currentSubEvent;
 
@@ -253,7 +482,7 @@ if (user.role !== "Coordinator") {
           });
           if (data.success) {
               setResultEditorState(latestEvent, data.subEvent || latestSubEvent);
-              hintEl.textContent = "Results saved. Fields are cleared for the next update.";
+              hintEl.textContent = "Results saved.";
               alert("Results updated");
           } else {
               alert(data.message || "Failed to update results");
@@ -261,6 +490,52 @@ if (user.role !== "Coordinator") {
       } catch (err) {
           console.error(err);
           alert(err.message || "Failed to update results");
+      }
+  }
+
+  async function addManualParticipant(e) {
+      e.preventDefault();
+      if (!currentSubEvent || !currentSubEvent.id) {
+          alert("Select a sub-event first");
+          return;
+      }
+      const token = getToken();
+      if (!token) {
+          alert("Login required");
+          return;
+      }
+
+      const payload = {
+          subEventId: currentSubEvent.id,
+          name: offlineName.value.trim(),
+          college: offlineCollege.value.trim(),
+          department: offlineDepartment.value.trim(),
+          email: offlineEmail.value.trim(),
+          mobile: offlineMobile.value.trim(),
+          paymentStatus: offlinePaymentStatus.value
+      };
+      if (!payload.name || !payload.college || !payload.department || !payload.email || !payload.mobile) {
+          alert("Fill all participant fields");
+          return;
+      }
+
+      try {
+          const data = await fetchJSON(`${API_BASE}/api/registrations/manual`, {
+              method: "POST",
+              headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify(payload)
+          });
+          if (!data.success) {
+              alert(data.message || "Unable to add participant");
+              return;
+          }
+          offlineAddForm.reset();
+          await loadRegistrations(currentSubEvent.id);
+      } catch (err) {
+          alert(err.message || "Unable to add participant");
       }
   }
 
@@ -272,7 +547,7 @@ if (user.role !== "Coordinator") {
       }
 
       const subEventLists = await Promise.all(
-          events.map(e => fetchJSON(`${API_BASE}/api/subevents/${e.id}`))
+          events.map((event) => fetchJSON(`${API_BASE}/api/subevents/${event.id}`))
       );
       const subEvents = subEventLists.flat().filter(Boolean);
 
@@ -281,24 +556,23 @@ if (user.role !== "Coordinator") {
           return null;
       }
 
-      const eventMap = new Map(events.map(e => [e.id, e]));
+      const eventMap = new Map(events.map((event) => [event.id, event]));
       const listText = subEvents
-          .map(se => {
-              const ev = eventMap.get(se.eventId);
-              const evName = ev ? ev.name : "Event";
-              return `${se.id}: ${se.name} — ${evName}`;
+          .map((subEvent) => {
+              const event = eventMap.get(subEvent.eventId);
+              return `${subEvent.id}: ${subEvent.name} — ${event ? event.name : "Event"}`;
           })
           .join("\n");
 
       const saved = localStorage.getItem("assignedSubEventId");
-      const input = await window.uiPrompt({
+      const input = await showPrompt({
           title: "Select Sub-Event",
           message: `Enter Sub-Event ID:\n${listText}`,
           defaultValue: saved || subEvents[0].id
       });
       if (!input) return null;
       const id = parseInt(input, 10);
-      const exists = subEvents.some(se => se.id === id);
+      const exists = subEvents.some((subEvent) => subEvent.id === id);
       if (!exists) {
           alert("Invalid Sub-Event ID");
           return null;
@@ -311,61 +585,33 @@ if (user.role !== "Coordinator") {
       const subEventId = await pickSubEventId();
       if (!subEventId) {
           labelEl.textContent = "No sub-event selected";
-          setResultEditorState(null);
+          setResultEditorState(null, null);
+          renderStudents([]);
           return;
       }
 
       const subEvent = await fetchJSON(`${API_BASE}/api/subevents/detail/${subEventId}`);
       const events = await fetchJSON(`${API_BASE}/api/events`);
-      const eventMap = new Map(events.map(e => [e.id, e]));
+      const eventMap = new Map(events.map((event) => [event.id, event]));
       const event = eventMap.get(subEvent.eventId);
 
       labelEl.textContent = `${subEvent.name} — ${event ? event.name : "Event"}`;
       setResultEditorState(event || null, subEvent || null);
-
-      const registrations = await fetchJSON(`${API_BASE}/api/registrations/${subEventId}`);
-      renderStudents(registrations);
+      await loadRegistrations(subEventId);
   }
 
-  function renderStudents(registrations) {
-      listEl.innerHTML = "";
-
-      if (!Array.isArray(registrations) || registrations.length === 0) {
-          listEl.innerHTML = `
-            <tr>
-              <td colspan="5" style="padding:12px;border:1px solid var(--border-color);text-align:center;color:var(--text-muted)">
-                No registrations yet
-              </td>
-            </tr>
-          `;
-          return;
-      }
-
-      registrations.forEach(r => {
-          const payment = r.paymentStatus || "Pending";
-          const qr = payment === "Paid" ? "Generated" : "Not Generated";
-          listEl.innerHTML += `
-              <tr>
-                  <td style="padding:10px;border:1px solid var(--border-color)">${r.name}</td>
-                  <td style="padding:10px;border:1px solid var(--border-color)">${r.college}</td>
-                  <td style="padding:10px;border:1px solid var(--border-color);color:${payment === 'Paid' ? '#38a169' : '#e53e3e'}">${payment}</td>
-                  <td style="padding:10px;border:1px solid var(--border-color)">${qr}</td>
-                  <td style="padding:10px;border:1px solid var(--border-color);text-align:center">
-                      <input type="checkbox">
-                  </td>
-              </tr>
-          `;
-      });
-  }
-
-  if (saveResultsBtn) {
-      saveResultsBtn.addEventListener("click", async () => {
-          await saveSubEventResults();
-      });
-  }
+  showAttendanceBtn.addEventListener("click", () => setActivePanel("attendance"));
+  showResultsBtn.addEventListener("click", () => setActivePanel("results"));
+  saveResultsBtn.addEventListener("click", saveSubEventResults);
+  offlineAddForm.addEventListener("submit", addManualParticipant);
 
   setResultEditorState(null, null);
-  document.addEventListener("DOMContentLoaded", loadAssignedSubEvent);
+  renderStudents([]);
+  document.addEventListener("DOMContentLoaded", async () => {
+      document.body.style.overflow = "auto";
+      setActivePanel("attendance");
+      await loadAssignedSubEvent();
+  });
 </script>
 
 </body>
