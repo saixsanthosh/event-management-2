@@ -227,10 +227,14 @@ if (user.role !== "Coordinator") {
   const offlineEmail = document.getElementById("offlineEmail");
   const offlineMobile = document.getElementById("offlineMobile");
   const offlinePaymentStatus = document.getElementById("offlinePaymentStatus");
+  const REGISTRATION_AUTO_REFRESH_MS = 8000;
 
   let currentEvent = null;
   let currentSubEvent = null;
   let currentRegistrations = [];
+  let registrationsSnapshot = "[]";
+  let registrationsAutoRefreshTimer = null;
+  let registrationsRefreshInFlight = false;
 
   function showConfirm(options) {
       if (window.uiConfirm) return window.uiConfirm(options);
@@ -402,6 +406,15 @@ if (user.role !== "Coordinator") {
   function renderStudents(registrations) {
       listEl.innerHTML = "";
       currentRegistrations = Array.isArray(registrations) ? registrations : [];
+      registrationsSnapshot = JSON.stringify(
+          currentRegistrations
+              .map((r) => ({
+                  id: Number.parseInt(r.id, 10) || 0,
+                  paymentStatus: String(r.paymentStatus || ""),
+                  attendance: Boolean(r.attendance)
+              }))
+              .sort((a, b) => a.id - b.id)
+      );
 
       if (currentRegistrations.length === 0) {
           listEl.innerHTML = `
@@ -441,6 +454,47 @@ if (user.role !== "Coordinator") {
   async function loadRegistrations(subEventId) {
       const registrations = await fetchJSON(`${API_BASE}/api/registrations/${subEventId}`);
       renderStudents(registrations);
+  }
+
+  async function refreshRegistrationsSilently() {
+      if (!currentSubEvent || !currentSubEvent.id || registrationsRefreshInFlight) return;
+      registrationsRefreshInFlight = true;
+      try {
+          const latest = await fetchJSON(`${API_BASE}/api/registrations/${currentSubEvent.id}`);
+          const nextSnapshot = JSON.stringify(
+              (Array.isArray(latest) ? latest : [])
+                  .map((r) => ({
+                      id: Number.parseInt(r.id, 10) || 0,
+                      paymentStatus: String(r.paymentStatus || ""),
+                      attendance: Boolean(r.attendance)
+                  }))
+                  .sort((a, b) => a.id - b.id)
+          );
+          if (nextSnapshot !== registrationsSnapshot) {
+              renderStudents(latest);
+          }
+      } catch (_) {
+          // Ignore transient polling failures and keep current UI.
+      } finally {
+          registrationsRefreshInFlight = false;
+      }
+  }
+
+  function startRegistrationsAutoRefresh() {
+      if (registrationsAutoRefreshTimer) {
+          clearInterval(registrationsAutoRefreshTimer);
+      }
+      registrationsAutoRefreshTimer = setInterval(() => {
+          if (!document.hidden) {
+              refreshRegistrationsSilently();
+          }
+      }, REGISTRATION_AUTO_REFRESH_MS);
+  }
+
+  function stopRegistrationsAutoRefresh() {
+      if (!registrationsAutoRefreshTimer) return;
+      clearInterval(registrationsAutoRefreshTimer);
+      registrationsAutoRefreshTimer = null;
   }
 
   async function submitAttendanceParticipants() {
@@ -643,6 +697,7 @@ if (user.role !== "Coordinator") {
           labelEl.textContent = "No sub-event selected";
           setResultEditorState(null, null);
           renderStudents([]);
+          stopRegistrationsAutoRefresh();
           return;
       }
 
@@ -654,6 +709,7 @@ if (user.role !== "Coordinator") {
       labelEl.textContent = `${subEvent.name} — ${event ? event.name : "Event"}`;
       setResultEditorState(event || null, subEvent || null);
       await loadRegistrations(subEventId);
+      startRegistrationsAutoRefresh();
   }
 
   showAttendanceBtn.addEventListener("click", () => setActivePanel("attendance"));
@@ -669,6 +725,7 @@ if (user.role !== "Coordinator") {
       setActivePanel("attendance");
       await loadAssignedSubEvent();
   });
+  window.addEventListener("beforeunload", stopRegistrationsAutoRefresh);
 </script>
 
 </body>

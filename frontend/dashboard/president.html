@@ -283,6 +283,8 @@ const sendApprovalBtn = document.getElementById("sendApprovalBtn");
 const setFeeBtn = document.getElementById("setFeeBtn");
 const paymentRequestsEl = document.getElementById("paymentRequests");
 const MAX_VISIBLE_PAYMENT_REQUESTS = 5;
+const PAYMENT_REFRESH_MS = 10000;
+let paymentRefreshTimer = null;
 const wfInputs = {
   President: document.getElementById("wfPresident"),
   Faculty: document.getElementById("wfFaculty"),
@@ -441,9 +443,15 @@ function renderEmptyPayments() {
   clearPaymentRequestScrollLimit();
   paymentRequestsEl.innerHTML = `
     <div style="border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:20px">
-      <p style="color:var(--text-muted);margin:0">No pending payments</p>
+      <p style="color:var(--text-muted);margin:0">No payment updates right now</p>
     </div>
   `;
+}
+
+function formatPaymentDate(value) {
+  const time = Date.parse(value || "");
+  if (!Number.isFinite(time)) return "-";
+  return new Date(time).toLocaleString();
 }
 
 function clearPaymentRequestScrollLimit() {
@@ -485,16 +493,51 @@ async function loadPayments() {
       headers: { "Authorization": `Bearer ${token}` }
     });
     const payments = await res.json();
-    const pending = Array.isArray(payments)
-      ? payments.filter((p) => p.status === "Pending" && p.method !== "Razorpay")
-      : [];
+    const list = Array.isArray(payments) ? payments : [];
+    const pending = list.filter((p) => p.status === "Pending" && p.method !== "Razorpay");
+    const razorpayConfirmed = list
+      .filter((p) => p.method === "Razorpay" && p.status === "Verified")
+      .slice(0, 6);
 
-    if (pending.length === 0) {
+    if (pending.length === 0 && razorpayConfirmed.length === 0) {
       renderEmptyPayments();
       return;
     }
 
     paymentRequestsEl.innerHTML = "";
+    razorpayConfirmed.forEach((payment) => {
+      const card = document.createElement("div");
+      const regIds = Array.isArray(payment.registrationIds) && payment.registrationIds.length
+        ? payment.registrationIds.join(", ")
+        : (payment.registrationId || "N/A");
+      const referenceId = payment.transactionId || payment.razorpayPaymentId || payment.razorpayOrderId || "N/A";
+      card.style.border = "1px solid rgba(56,161,105,0.45)";
+      card.style.borderRadius = "16px";
+      card.style.padding = "20px";
+      card.style.marginBottom = "20px";
+      card.style.background = "rgba(56,161,105,0.08)";
+      card.innerHTML = `
+        <h3 style="margin-bottom:8px;color:#38a169">Razorpay Payment Confirmed</h3>
+        <p style="color:var(--text-muted);margin-bottom:8px">
+          Ref: ${referenceId} • Reg ID(s): ${regIds}
+        </p>
+        <p style="color:var(--text-muted);margin:0">
+          Time: ${formatPaymentDate(payment.verifiedAt || payment.createdAt)} • No manual action required
+        </p>
+      `;
+      paymentRequestsEl.appendChild(card);
+    });
+
+    if (pending.length === 0) {
+      const card = document.createElement("div");
+      card.style.border = "1px solid var(--border-color)";
+      card.style.borderRadius = "16px";
+      card.style.padding = "20px";
+      card.style.marginBottom = "20px";
+      card.innerHTML = `<p style="color:var(--text-muted);margin:0">No manual verification requests pending</p>`;
+      paymentRequestsEl.appendChild(card);
+    }
+
     pending.forEach(p => {
       const card = document.createElement("div");
       card.style.border = "1px solid var(--border-color)";
@@ -535,6 +578,15 @@ async function loadPayments() {
   }
 }
 
+function startPaymentAutoRefresh() {
+  if (paymentRefreshTimer) clearInterval(paymentRefreshTimer);
+  paymentRefreshTimer = setInterval(() => {
+    if (!document.hidden) {
+      loadPayments();
+    }
+  }, PAYMENT_REFRESH_MS);
+}
+
 async function updatePaymentStatus(id, status) {
   const token = localStorage.getItem("token");
   if (!token) {
@@ -560,9 +612,13 @@ async function updatePaymentStatus(id, status) {
 document.addEventListener("DOMContentLoaded", () => {
   loadSummary();
   loadPayments();
+  startPaymentAutoRefresh();
 });
 
 window.addEventListener("resize", applyPaymentRequestScrollLimit);
+window.addEventListener("beforeunload", () => {
+  if (paymentRefreshTimer) clearInterval(paymentRefreshTimer);
+});
 
 async function updateSubEventFee(id, fee, token) {
   const res = await fetch(`${API_BASE}/api/subevents/${id}`, {

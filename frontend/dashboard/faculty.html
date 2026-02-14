@@ -132,6 +132,8 @@ if (user.role !== "Faculty") {
   const eventApprovalRequestsEl = document.getElementById("eventApprovalRequests");
   const roleApprovalRequestsEl = document.getElementById("roleApprovalRequests");
   const paymentRequestsEl = document.getElementById("paymentRequests");
+  const PAYMENT_REFRESH_MS = 10000;
+  let paymentRefreshTimer = null;
   // Audit log removed on faculty page
   const eventsListEl = document.getElementById("eventsList");
   const wfInputs = {
@@ -264,9 +266,15 @@ if (user.role !== "Faculty") {
       if (!paymentRequestsEl) return;
       paymentRequestsEl.innerHTML = `
         <div style="border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:30px">
-          <p style="color:var(--text-muted);margin:0">No pending payments</p>
+          <p style="color:var(--text-muted);margin:0">No payment updates right now</p>
         </div>
       `;
+  }
+
+  function formatPaymentDate(value) {
+      const time = Date.parse(value || "");
+      if (!Number.isFinite(time)) return "-";
+      return new Date(time).toLocaleString();
   }
 
 
@@ -467,16 +475,51 @@ if (user.role !== "Faculty") {
               headers: { "Authorization": `Bearer ${token}` }
           });
           const payments = await res.json();
-          const pending = Array.isArray(payments)
-              ? payments.filter((p) => p.status === "Pending" && p.method !== "Razorpay")
-              : [];
+          const list = Array.isArray(payments) ? payments : [];
+          const pending = list.filter((p) => p.status === "Pending" && p.method !== "Razorpay");
+          const razorpayConfirmed = list
+              .filter((p) => p.method === "Razorpay" && p.status === "Verified")
+              .slice(0, 6);
 
-          if (pending.length === 0) {
+          if (pending.length === 0 && razorpayConfirmed.length === 0) {
               renderEmptyPayments();
               return;
           }
 
           paymentRequestsEl.innerHTML = "";
+          razorpayConfirmed.forEach((payment) => {
+              const card = document.createElement("div");
+              const regIds = Array.isArray(payment.registrationIds) && payment.registrationIds.length
+                  ? payment.registrationIds.join(", ")
+                  : (payment.registrationId || "N/A");
+              const referenceId = payment.transactionId || payment.razorpayPaymentId || payment.razorpayOrderId || "N/A";
+              card.style.border = "1px solid rgba(56,161,105,0.45)";
+              card.style.borderRadius = "16px";
+              card.style.padding = "20px";
+              card.style.marginBottom = "20px";
+              card.style.background = "rgba(56,161,105,0.08)";
+              card.innerHTML = `
+                <h3 style="margin-bottom:8px;color:#38a169">Razorpay Payment Confirmed</h3>
+                <p style="color:var(--text-muted);margin-bottom:8px">
+                  Ref: ${referenceId} • Reg ID(s): ${regIds}
+                </p>
+                <p style="color:var(--text-muted);margin:0">
+                  Time: ${formatPaymentDate(payment.verifiedAt || payment.createdAt)} • No manual action required
+                </p>
+              `;
+              paymentRequestsEl.appendChild(card);
+          });
+
+          if (pending.length === 0) {
+              const card = document.createElement("div");
+              card.style.border = "1px solid var(--border-color)";
+              card.style.borderRadius = "16px";
+              card.style.padding = "20px";
+              card.style.marginBottom = "20px";
+              card.innerHTML = `<p style="color:var(--text-muted);margin:0">No manual verification requests pending</p>`;
+              paymentRequestsEl.appendChild(card);
+          }
+
           pending.forEach(p => {
               const card = document.createElement("div");
               card.style.border = "1px solid var(--border-color)";
@@ -513,6 +556,15 @@ if (user.role !== "Faculty") {
           console.error(err);
           renderEmptyPayments();
       }
+  }
+
+  function startPaymentAutoRefresh() {
+      if (paymentRefreshTimer) clearInterval(paymentRefreshTimer);
+      paymentRefreshTimer = setInterval(() => {
+          if (!document.hidden) {
+              loadPayments();
+          }
+      }, PAYMENT_REFRESH_MS);
   }
 
 
@@ -589,6 +641,10 @@ if (user.role !== "Faculty") {
   document.addEventListener("DOMContentLoaded", () => {
       loadEventsAndApprovals();
       loadPayments();
+      startPaymentAutoRefresh();
+  });
+  window.addEventListener("beforeunload", () => {
+      if (paymentRefreshTimer) clearInterval(paymentRefreshTimer);
   });
 </script>
 
