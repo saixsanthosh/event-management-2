@@ -181,7 +181,7 @@
     </div>
     <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
         <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="How do I register?">How do I register?</button>
-        <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="How do I pay with UPI?">How do I pay with UPI?</button>
+        <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="How do I pay online?">How do I pay online?</button>
         <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="How to apply as coordinator?">How to apply as coordinator?</button>
         <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="What if I already registered?">What if I already registered?</button>
         <button class="login-btn" style="padding:10px 12px;font-size:0.85rem" data-suggested="Is login required?">Is login required?</button>
@@ -420,12 +420,12 @@ const AI_FAQ = [
         answer: "Choose an Event and Sub Event, fill your details, then click Submit Registration. You will get a QR after success."
     },
     {
-        keywords: ["payment", "upi", "transaction", "qr", "paid", "pay", "fee"],
-        answer: "Scan the UPI QR, pay, and enter the Transaction ID. Your payment will be verified by the admin."
+        keywords: ["payment", "transaction", "razorpay", "paid", "pay", "fee"],
+        answer: "After submitting registration, continue to Razorpay checkout and complete payment there."
     },
     {
         keywords: ["transaction id", "txn", "utr", "reference"],
-        answer: "Enter the UPI Transaction ID after payment so the admin can verify it."
+        answer: "Manual transaction ID entry is removed. Payment is verified automatically through Razorpay."
     },
     {
         keywords: ["coordinator", "volunteer", "apply", "role"],

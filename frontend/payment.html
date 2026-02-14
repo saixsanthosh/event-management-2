@@ -39,9 +39,9 @@
   document.addEventListener("DOMContentLoaded", () => {
       document.body.style.overflow = "auto";
   });
-  </script>
+</script>
 
-  <script src="js/notify.js"></script>
+<script src="js/notify.js"></script>
 
 <!-- THEME TOGGLE -->
 <div class="theme-toggle" id="themeToggle">
@@ -60,10 +60,10 @@
 <div class="login-left">
     <div class="brand-content">
         <div class="logo-icon">
-            <i class="fas fa-qrcode"></i>
+            <i class="fas fa-credit-card"></i>
         </div>
         <h1>Payment</h1>
-        <p>Secure UPI Registration</p>
+        <p>Secure Razorpay Checkout</p>
     </div>
 </div>
 
@@ -72,21 +72,20 @@
 
 <div class="form-header">
 <h2>Complete Your Payment</h2>
-<p>Scan QR & enter transaction ID</p>
+<p>Proceed using Razorpay and confirm instantly</p>
 </div>
 
 <div class="payment-box">
-<img id="upiQr" src="assets/qr.png.jpeg" width="180" alt="UPI QR" style="cursor:pointer">
-<p style="margin-top:10px;font-weight:600">Scan & Pay</p>
+<div style="font-size:2rem;color:var(--accent-color);margin-bottom:8px">
+    <i class="fas fa-bolt"></i>
+</div>
+<p style="margin:0 0 6px 0;font-weight:600">Pay securely with Razorpay</p>
+<p id="feeLabel" style="margin:0;color:var(--text-secondary)">Fee: Loading...</p>
 </div>
 
-<div class="input-group">
-<input id="txn" placeholder="Enter Transaction ID">
-</div>
-
-<button class="login-btn" onclick="submitPayment()">
-<i class="fas fa-check-circle"></i>
-<span>Confirm Payment</span>
+<button id="payBtn" class="login-btn">
+<i class="fas fa-lock"></i>
+<span>Pay With Razorpay</span>
 </button>
 
 <br><br>
@@ -99,154 +98,247 @@
 </div>
 </div>
 
-<input id="qrFileInput" type="file" accept="image/*" style="display:none">
-
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
 const API_ORIGIN = window.location.origin;
-const qrImg = document.getElementById("upiQr");
-const qrFileInput = document.getElementById("qrFileInput");
+const statusBox = document.getElementById("statusBox");
+const feeLabel = document.getElementById("feeLabel");
+const payBtn = document.getElementById("payBtn");
+const REG_CACHE_KEY = "pendingRegistrationIds";
 
-async function loadQr() {
+let pendingRegistration = null;
+let selectedSubEvent = null;
+let processing = false;
+
+function setStatus(type, message) {
+    statusBox.innerHTML = `<div class="status ${type}">${message}</div>`;
+}
+
+function parseJSON(raw) {
     try {
-        const res = await fetch(`${API_ORIGIN}/api/payments/qr`);
-        const data = await res.json();
-        if (data.success && data.qrPath) {
-            qrImg.src = data.qrPath;
+        return JSON.parse(raw);
+    } catch (_) {
+        return null;
+    }
+}
+
+function getPendingFingerprint(pending) {
+    if (!pending || !pending.subEventId) return "";
+    if (pending.participationType === "Team") {
+        const members = Array.isArray(pending.members) ? pending.members : [];
+        const emails = members
+            .map((member) => String(member && member.email || "").trim().toLowerCase())
+            .filter(Boolean)
+            .sort()
+            .join("|");
+        const teamName = String(pending.teamName || "").trim().toLowerCase();
+        return `team:${pending.subEventId}:${teamName}:${emails}`;
+    }
+    return `single:${pending.subEventId}:${String(pending.email || "").trim().toLowerCase()}`;
+}
+
+function readCachedRegistrationIds(fingerprint) {
+    const cached = parseJSON(localStorage.getItem(REG_CACHE_KEY));
+    if (!cached || cached.fingerprint !== fingerprint || !Array.isArray(cached.registrationIds)) {
+        return [];
+    }
+    return cached.registrationIds
+        .map((id) => Number.parseInt(id, 10))
+        .filter((id) => Number.isFinite(id));
+}
+
+function writeCachedRegistrationIds(fingerprint, ids) {
+    localStorage.setItem(REG_CACHE_KEY, JSON.stringify({
+        fingerprint,
+        registrationIds: ids
+    }));
+}
+
+async function fetchJSON(url, options = {}) {
+    const res = await fetch(url, options);
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error((data && data.message) || `Request failed (${res.status})`);
+    }
+    if (data && typeof data === "object" && Object.prototype.hasOwnProperty.call(data, "success") && !data.success) {
+        throw new Error(data.message || "Request failed");
+    }
+    return data;
+}
+
+async function loadSubEvent() {
+    if (!pendingRegistration || !pendingRegistration.subEventId) return;
+    try {
+        const subEvent = await fetchJSON(`${API_ORIGIN}/api/subevents/detail/${pendingRegistration.subEventId}`);
+        selectedSubEvent = subEvent;
+        const fee = Number(subEvent.fee);
+        if (Number.isFinite(fee)) {
+            feeLabel.textContent = `Fee: INR ${fee.toLocaleString("en-IN")}`;
+        } else {
+            feeLabel.textContent = "Fee: INR --";
         }
     } catch (err) {
+        feeLabel.textContent = "Fee: Unable to load";
         console.error(err);
     }
 }
 
-function canUploadQr() {
-    const user = JSON.parse(localStorage.getItem("user"));
-    return user && user.role === "President";
+async function registerIfNeeded() {
+    const fingerprint = getPendingFingerprint(pendingRegistration);
+    const cachedIds = readCachedRegistrationIds(fingerprint);
+    if (cachedIds.length > 0) {
+        return cachedIds;
+    }
+
+    const payload = pendingRegistration && pendingRegistration.participationType === "Team"
+        ? {
+            subEventId: pendingRegistration.subEventId,
+            teamName: pendingRegistration.teamName || "",
+            members: Array.isArray(pendingRegistration.members) ? pendingRegistration.members : []
+        }
+        : {
+            name: pendingRegistration.name,
+            college: pendingRegistration.college,
+            department: pendingRegistration.department,
+            email: pendingRegistration.email,
+            mobile: pendingRegistration.mobile,
+            subEventId: pendingRegistration.subEventId
+        };
+
+    const regData = await fetchJSON(`${API_ORIGIN}/api/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+    const ids = regData.registration
+        ? [regData.registration.id]
+        : (Array.isArray(regData.registrations) ? regData.registrations.map((item) => item.id) : []);
+    if (!Array.isArray(ids) || ids.length === 0) {
+        throw new Error("Registration not created");
+    }
+    localStorage.setItem("lastRegistrationId", ids[0]);
+    writeCachedRegistrationIds(fingerprint, ids);
+    return ids;
 }
 
-qrImg.addEventListener("click", () => {
-    if (!canUploadQr()) return;
-    qrFileInput.click();
-});
+async function createRazorpayOrder(registrationIds) {
+    return fetchJSON(`${API_ORIGIN}/api/payments/create-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationIds })
+    });
+}
 
-qrFileInput.addEventListener("change", async () => {
-    const file = qrFileInput.files[0];
-    if (!file) return;
+async function verifyRazorpayPayment(payload) {
+    return fetchJSON(`${API_ORIGIN}/api/payments/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+}
 
-    const token = localStorage.getItem("token");
-    if (!token) {
-        alert("Login required");
+function onPaymentSuccess() {
+    localStorage.removeItem("pendingRegistration");
+    localStorage.removeItem(REG_CACHE_KEY);
+    localStorage.setItem("paymentSuccessMessage", "Payment completed successfully ✔");
+    setStatus("success", "Payment completed successfully ✔");
+    setTimeout(() => {
+        window.location.href = "qr.html";
+    }, 1200);
+}
+
+function openCheckout(orderPayload, pending) {
+    const options = {
+        key: orderPayload.keyId,
+        amount: orderPayload.order.amount,
+        currency: orderPayload.order.currency,
+        name: "College Event Management",
+        description: selectedSubEvent && selectedSubEvent.name
+            ? `${selectedSubEvent.name} Registration`
+            : "Event Registration Fee",
+        order_id: orderPayload.order.id,
+        handler: async function (response) {
+            try {
+                setStatus("pending", "Verifying payment...");
+                await verifyRazorpayPayment({
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature
+                });
+                onPaymentSuccess();
+            } catch (err) {
+                setStatus("pending", err.message || "Payment verification failed.");
+                alert(err.message || "Payment verification failed");
+            }
+        },
+        modal: {
+            ondismiss: function () {
+                setStatus("pending", "Payment not completed. You can retry.");
+            }
+        },
+        prefill: pending.participationType === "Team"
+            ? {}
+            : {
+                name: pending.name || "",
+                email: pending.email || "",
+                contact: pending.mobile || ""
+            },
+        theme: { color: "#667eea" }
+    };
+
+    const rz = new Razorpay(options);
+    rz.on("payment.failed", function (response) {
+        const message = response && response.error && response.error.description
+            ? response.error.description
+            : "Payment failed";
+        setStatus("pending", message);
+        alert(message);
+    });
+    rz.open();
+}
+
+async function startPayment() {
+    if (processing) return;
+    if (!pendingRegistration) {
+        alert("Please register first before making payment.");
+        window.location.href = "student.html";
+        return;
+    }
+    if (typeof window.Razorpay !== "function") {
+        alert("Razorpay script failed to load. Check internet and retry.");
         return;
     }
 
-    const formData = new FormData();
-    formData.append("qr", file);
-
+    processing = true;
+    payBtn.disabled = true;
     try {
-        const res = await fetch(`${API_ORIGIN}/api/payments/qr`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${token}` },
-            body: formData
-        });
-        const data = await res.json();
-        if (data.success && data.qrPath) {
-            qrImg.src = data.qrPath;
-            alert("UPI QR updated");
-        } else {
-            alert(data.message || "Upload failed");
-        }
+        setStatus("pending", "Preparing registration...");
+        const registrationIds = await registerIfNeeded();
+        setStatus("pending", "Creating payment order...");
+        const orderPayload = await createRazorpayOrder(registrationIds);
+        setStatus("pending", "Opening Razorpay checkout...");
+        openCheckout(orderPayload, pendingRegistration);
     } catch (err) {
         console.error(err);
-        alert("Upload failed");
-    }
-});
-
-async function submitPayment() {
-    const txn = document.getElementById("txn").value;
-    const statusBox = document.getElementById("statusBox");
-
-    if (!txn) {
-        alert("Enter transaction ID");
-        return;
-    }
-
-    try {
-        const pendingRaw = localStorage.getItem("pendingRegistration");
-        if (!pendingRaw) {
-            alert("Please register first before making payment.");
-            return;
-        }
-        const pending = JSON.parse(pendingRaw);
-
-        statusBox.innerHTML = `
-            <div class="status pending">
-                Processing registration...
-            </div>
-        `;
-
-        const regRes = await fetch(`${API_ORIGIN}/api/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(
-                pending && pending.participationType === "Team"
-                    ? {
-                        subEventId: pending.subEventId,
-                        teamName: pending.teamName || "",
-                        members: Array.isArray(pending.members) ? pending.members : [],
-                        transactionId: txn
-                    }
-                    : {
-                        name: pending.name,
-                        college: pending.college,
-                        department: pending.department,
-                        email: pending.email,
-                        mobile: pending.mobile,
-                        subEventId: pending.subEventId,
-                        transactionId: txn
-                    }
-            )
-        });
-        const regData = await regRes.json();
-        const primaryRegistration = regData && regData.registration
-            ? regData.registration
-            : (Array.isArray(regData.registrations) ? regData.registrations[0] : null);
-        if (!regData.success || !primaryRegistration) {
-            alert(regData.message || "Registration failed");
-            return;
-        }
-
-        localStorage.setItem("lastRegistrationId", primaryRegistration.id);
-
-        const payRes = await fetch(`${API_ORIGIN}/api/payments/submit`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                transactionId: txn,
-                registrationId: primaryRegistration.id
-            })
-        });
-        const payData = await payRes.json();
-
-        if (payData.success) {
-            localStorage.removeItem("pendingRegistration");
-            localStorage.setItem("paymentSuccessMessage", "Payment submitted successfully ✔");
-            statusBox.innerHTML = `
-                <div class="status success">
-                    Payment Submitted Successfully ✔
-                </div>
-            `;
-            setTimeout(() => {
-                window.location.href = "qr.html";
-            }, 1400);
-        } else {
-            alert(payData.message || "Payment failed");
-        }
-    } catch (err) {
-        console.error(err);
-        alert("Backend not reachable");
+        setStatus("pending", err.message || "Unable to start payment");
+        alert(err.message || "Unable to start payment");
+    } finally {
+        processing = false;
+        payBtn.disabled = false;
     }
 }
 
-document.addEventListener("DOMContentLoaded", loadQr);
+document.addEventListener("DOMContentLoaded", async () => {
+    pendingRegistration = parseJSON(localStorage.getItem("pendingRegistration"));
+    if (!pendingRegistration) {
+        setStatus("pending", "No pending registration found. Please register again.");
+        payBtn.disabled = true;
+        return;
+    }
+    await loadSubEvent();
+});
+
+payBtn.addEventListener("click", startPayment);
 </script>
 
 <script src="js/main.js"></script>

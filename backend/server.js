@@ -15,12 +15,19 @@ const SECRET = "event_secret_key";
 const APPROVAL_SEQUENCE = ["President", "Faculty", "HOD", "VP", "Dean"];
 const LOGIN_MAX_ATTEMPTS = 3;
 const LOGIN_LOCK_MINUTES = 15;
+const RAZORPAY_KEY_ID = sanitizeEnv(process.env.RAZORPAY_KEY_ID, 120);
+const RAZORPAY_KEY_SECRET = sanitizeEnv(process.env.RAZORPAY_KEY_SECRET, 180);
+const RAZORPAY_CURRENCY = sanitizeEnv(process.env.RAZORPAY_CURRENCY, 10) || "INR";
 
 const fs = require("fs");
 const UPLOAD_DIR = path.join(__dirname, "uploads", "posters");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const UPI_DIR = path.join(__dirname, "uploads", "upi");
 if (!fs.existsSync(UPI_DIR)) fs.mkdirSync(UPI_DIR, { recursive: true });
+
+function sanitizeEnv(value, max) {
+  return String(value || "").trim().slice(0, max || 200);
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -120,6 +127,48 @@ function rateLimit(limit) {
 
 function sanitizeString(value, max = 200) {
   return String(value || "").trim().slice(0, max);
+}
+
+function isRazorpayConfigured() {
+  return Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
+}
+
+function toMoneyPaise(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return 0;
+  return Math.round(num * 100);
+}
+
+async function createRazorpayOrder(amountPaise, receipt, notes) {
+  const basic = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+  const response = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${basic}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      amount: amountPaise,
+      currency: RAZORPAY_CURRENCY,
+      receipt,
+      payment_capture: 1,
+      notes: notes || {}
+    })
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_) {
+    payload = null;
+  }
+  if (!response.ok || !payload || !payload.id) {
+    const message = payload && payload.error && payload.error.description
+      ? payload.error.description
+      : "Unable to create Razorpay order";
+    throw new Error(message);
+  }
+  return payload;
 }
 
 function isValidEmail(value) {
@@ -1385,7 +1434,19 @@ app.delete("/api/registrations/:id", rateLimit(30), verifyToken, allowRoles("Coo
     ? registrations.find((item) => item.transactionId === removed.transactionId)
     : null;
   payments.forEach((payment) => {
-    if (Number(payment.registrationId) === id) {
+    if (Array.isArray(payment.registrationIds)) {
+      const existingIds = payment.registrationIds.map((rid) => Number(rid)).filter(Boolean);
+      const nextIds = existingIds.filter((rid) => rid !== id);
+      if (nextIds.length !== existingIds.length) {
+        payment.registrationIds = nextIds;
+        paymentsChanged = true;
+      }
+      const primaryId = Number(payment.registrationId);
+      if (primaryId === id || (nextIds.length > 0 && !nextIds.includes(primaryId))) {
+        payment.registrationId = nextIds[0] || (replacement ? replacement.id : null);
+        paymentsChanged = true;
+      }
+    } else if (Number(payment.registrationId) === id) {
       payment.registrationId = replacement ? replacement.id : null;
       paymentsChanged = true;
     }
@@ -1432,36 +1493,185 @@ app.post("/api/payments/qr", rateLimit(20), verifyToken, allowRoles("President")
 });
 
 /* =========================
-   PAYMENT: SUBMIT TRANSACTION
+   PAYMENT: CREATE RAZORPAY ORDER
 ========================= */
-app.post("/api/payments/submit", rateLimit(30), (req, res) => {
-  const transactionId = sanitizeString(req.body.transactionId, 80);
-  const registrationId = toSafeInt(req.body.registrationId);
-  if (!transactionId) {
-    return res.json({ success: false, message: "Transaction ID required" });
+app.post("/api/payments/create-order", rateLimit(30), async (req, res) => {
+  if (!isRazorpayConfigured()) {
+    return res.status(503).json({
+      success: false,
+      message: "Razorpay is not configured on server"
+    });
+  }
+
+  const rawIds = Array.isArray(req.body.registrationIds)
+    ? req.body.registrationIds
+    : [req.body.registrationId];
+  const registrationIds = Array.from(
+    new Set(rawIds.map((id) => toSafeInt(id)).filter(Boolean))
+  );
+  if (registrationIds.length === 0) {
+    return res.status(400).json({ success: false, message: "Registration ID is required" });
+  }
+
+  const registrations = store.getRegistrations();
+  const selected = registrationIds
+    .map((id) => registrations.find((reg) => reg.id === id))
+    .filter(Boolean);
+  if (selected.length !== registrationIds.length) {
+    return res.status(404).json({ success: false, message: "One or more registrations not found" });
+  }
+
+  const subEventId = toSafeInt(selected[0].subEventId);
+  if (!subEventId || selected.some((reg) => toSafeInt(reg.subEventId) !== subEventId)) {
+    return res.status(400).json({ success: false, message: "Selected registrations must belong to one sub-event" });
+  }
+  if (selected.some((reg) => sanitizeString(reg.paymentStatus, 20) === "Paid")) {
+    return res.status(400).json({ success: false, message: "Payment already completed for selected registration(s)" });
+  }
+
+  const teamIds = selected.map((reg) => sanitizeString(reg.teamId, 80)).filter(Boolean);
+  if (teamIds.length > 0 && new Set(teamIds).size > 1) {
+    return res.status(400).json({ success: false, message: "Team payment can include only one team at a time" });
+  }
+
+  const subEvent = store.getSubEvents().find((item) => item.id === subEventId);
+  if (!subEvent) {
+    return res.status(404).json({ success: false, message: "Sub-event not found" });
+  }
+  const amountPaise = toMoneyPaise(subEvent.fee);
+  if (amountPaise <= 0) {
+    return res.status(400).json({ success: false, message: "Invalid sub-event fee for payment" });
+  }
+
+  try {
+    const receipt = `sub-${subEventId}-${Date.now()}`;
+    const order = await createRazorpayOrder(amountPaise, receipt, {
+      subEventId: String(subEventId),
+      registrationCount: String(registrationIds.length)
+    });
+
+    const payments = store.getPayments();
+    const payment = {
+      id: store.nextId("payments"),
+      transactionId: "",
+      registrationId: registrationIds[0],
+      registrationIds,
+      subEventId,
+      status: "Pending",
+      method: "Razorpay",
+      razorpayOrderId: order.id,
+      amountPaise: order.amount,
+      amount: Number((order.amount / 100).toFixed(2)),
+      currency: sanitizeString(order.currency, 12) || RAZORPAY_CURRENCY,
+      createdAt: new Date().toISOString()
+    };
+    payments.push(payment);
+    store.savePayments(payments);
+
+    logAudit({
+      action: "Create Razorpay Order",
+      actor: "Public",
+      role: "Student",
+      details: `Order ${order.id} for registrations ${registrationIds.join(",")}`
+    });
+
+    res.json({
+      success: true,
+      keyId: RAZORPAY_KEY_ID,
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency
+      },
+      payment
+    });
+  } catch (err) {
+    res.status(502).json({ success: false, message: err.message || "Unable to create payment order" });
+  }
+});
+
+/* =========================
+   PAYMENT: VERIFY RAZORPAY SIGNATURE
+========================= */
+app.post("/api/payments/verify", rateLimit(40), (req, res) => {
+  if (!isRazorpayConfigured()) {
+    return res.status(503).json({
+      success: false,
+      message: "Razorpay is not configured on server"
+    });
+  }
+
+  const orderId = sanitizeString(req.body.razorpay_order_id, 120);
+  const paymentId = sanitizeString(req.body.razorpay_payment_id, 120);
+  const signature = sanitizeString(req.body.razorpay_signature, 180);
+  if (!orderId || !paymentId || !signature) {
+    return res.status(400).json({ success: false, message: "Missing Razorpay verification fields" });
   }
 
   const payments = store.getPayments();
-  const exists = payments.find(p => p.transactionId === transactionId);
-  if (exists) {
-    return res.json({ success: false, message: "Transaction ID already submitted" });
+  const payment = payments.find((item) => item.razorpayOrderId === orderId);
+  if (!payment) {
+    return res.status(404).json({ success: false, message: "Payment order not found" });
   }
-  const newPayment = {
-    id: store.nextId("payments"),
-    transactionId,
-    registrationId: registrationId || null,
-    status: "Pending",
-    createdAt: new Date().toISOString()
-  };
-  payments.push(newPayment);
+
+  if (payment.status === "Verified" && payment.transactionId === paymentId) {
+    return res.json({ success: true, payment });
+  }
+
+  const expected = crypto
+    .createHmac("sha256", RAZORPAY_KEY_SECRET)
+    .update(`${orderId}|${paymentId}`)
+    .digest("hex");
+  if (expected !== signature) {
+    payment.status = "Rejected";
+    payment.failureReason = "Signature mismatch";
+    payment.verifiedAt = new Date().toISOString();
+    store.savePayments(payments);
+    return res.status(400).json({ success: false, message: "Payment verification failed" });
+  }
+
+  payment.status = "Verified";
+  payment.transactionId = paymentId;
+  payment.razorpayPaymentId = paymentId;
+  payment.razorpaySignature = signature;
+  payment.verifiedAt = new Date().toISOString();
+
+  const registrationIds = Array.isArray(payment.registrationIds) && payment.registrationIds.length > 0
+    ? payment.registrationIds.map((id) => toSafeInt(id)).filter(Boolean)
+    : [toSafeInt(payment.registrationId)].filter(Boolean);
+  const registrationIdSet = new Set(registrationIds);
+  const registrations = store.getRegistrations();
+  let updatedCount = 0;
+  registrations.forEach((reg) => {
+    if (registrationIdSet.has(reg.id)) {
+      reg.paymentStatus = "Paid";
+      reg.transactionId = paymentId;
+      updatedCount += 1;
+    }
+  });
+
   store.savePayments(payments);
+  if (updatedCount > 0) {
+    store.saveRegistrations(registrations);
+  }
+
   logAudit({
-    action: "Submit Payment",
+    action: "Verify Razorpay Payment",
     actor: "Public",
     role: "Student",
-    details: `Payment ${newPayment.id} txn ${newPayment.transactionId}`
+    details: `Order ${orderId} verified; regs updated ${updatedCount}`
   });
-  res.json({ success: true, payment: newPayment });
+  res.json({ success: true, payment, updatedRegistrations: updatedCount });
+});
+
+/* =========================
+   PAYMENT: SUBMIT TRANSACTION (DEPRECATED)
+========================= */
+app.post("/api/payments/submit", rateLimit(30), (req, res) => {
+  res.status(410).json({
+    success: false,
+    message: "Manual transaction submission is disabled. Please use Razorpay checkout."
+  });
 });
 
 /* =========================
@@ -1492,6 +1702,12 @@ app.post("/api/payments/:id/status", rateLimit(40), verifyToken, allowRoles("Pre
   const payment = payments.find(p => p.id === id);
   if (!payment) {
     return res.json({ success: false, message: "Payment not found" });
+  }
+  if (sanitizeString(payment.method, 20) === "Razorpay") {
+    return res.status(400).json({
+      success: false,
+      message: "Razorpay payments are auto-verified and cannot be manually updated"
+    });
   }
 
   payment.status = status;

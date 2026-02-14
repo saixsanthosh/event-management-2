@@ -467,7 +467,9 @@ if (user.role !== "Faculty") {
               headers: { "Authorization": `Bearer ${token}` }
           });
           const payments = await res.json();
-          const pending = Array.isArray(payments) ? payments.filter(p => p.status === "Pending") : [];
+          const pending = Array.isArray(payments)
+              ? payments.filter((p) => p.status === "Pending" && p.method !== "Razorpay")
+              : [];
 
           if (pending.length === 0) {
               renderEmptyPayments();
