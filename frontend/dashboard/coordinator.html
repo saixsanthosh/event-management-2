@@ -593,7 +593,15 @@ if (user.role !== "Coordinator") {
           if (data.success) {
               setResultEditorState(latestEvent, data.subEvent || latestSubEvent);
               hintEl.textContent = "Results saved.";
-              alert("Results updated");
+              const summary = data.emailSummary || {};
+              const sent = Number(summary.sent || 0);
+              const failed = Number(summary.failed || 0);
+              const skipped = Number(summary.skipped || 0);
+              let info = "Results updated";
+              if (sent || failed || skipped) {
+                  info += `\nWinner emails -> Sent: ${sent}, Failed: ${failed}, Skipped: ${skipped}`;
+              }
+              alert(info);
           } else {
               alert(data.message || "Failed to update results");
           }

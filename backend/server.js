@@ -18,6 +18,12 @@ const LOGIN_LOCK_MINUTES = 15;
 const RAZORPAY_KEY_ID = sanitizeEnv(process.env.RAZORPAY_KEY_ID, 120);
 const RAZORPAY_KEY_SECRET = sanitizeEnv(process.env.RAZORPAY_KEY_SECRET, 180);
 const RAZORPAY_CURRENCY = sanitizeEnv(process.env.RAZORPAY_CURRENCY, 10) || "INR";
+const BREVO_API_KEY = sanitizeEnv(process.env.BREVO_API_KEY, 220);
+const BREVO_SENDER_EMAIL = sanitizeEnv(process.env.BREVO_SENDER_EMAIL, 180);
+const BREVO_SENDER_NAME = sanitizeEnv(process.env.BREVO_SENDER_NAME, 120) || "College Event Management";
+const APP_BASE_URL = sanitizeEnv(process.env.APP_BASE_URL, 220);
+const EMAIL_CONFIRM_TTL_HOURS = clampInt(process.env.EMAIL_CONFIRM_TTL_HOURS, 1, 168, 24);
+const EMAIL_CONFIRM_RESEND_SECONDS = clampInt(process.env.EMAIL_CONFIRM_RESEND_SECONDS, 30, 600, 60);
 
 const fs = require("fs");
 const UPLOAD_DIR = path.join(__dirname, "uploads", "posters");
@@ -62,6 +68,7 @@ const uploadUPI = multer({
 });
 
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
@@ -169,6 +176,342 @@ async function createRazorpayOrder(amountPaise, receipt, notes) {
     throw new Error(message);
   }
   return payload;
+}
+
+function isBrevoConfigured() {
+  return Boolean(BREVO_API_KEY && BREVO_SENDER_EMAIL);
+}
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(String(token || "")).digest("hex");
+}
+
+function createEmailConfirmationToken() {
+  const token = crypto.randomBytes(32).toString("hex");
+  return {
+    token,
+    hash: hashToken(token),
+    expiresAt: new Date(Date.now() + EMAIL_CONFIRM_TTL_HOURS * 60 * 60 * 1000).toISOString()
+  };
+}
+
+function resolveAppBaseUrl(req) {
+  if (APP_BASE_URL) return APP_BASE_URL.replace(/\/+$/, "");
+  const forwardedProto = sanitizeString(req.headers["x-forwarded-proto"], 10).split(",")[0];
+  const proto = forwardedProto || req.protocol || "http";
+  const host = sanitizeString(req.headers.host, 200);
+  if (!host) return "";
+  return `${proto}://${host}`;
+}
+
+function buildEmailConfirmationLink(req, token) {
+  const baseUrl = resolveAppBaseUrl(req);
+  if (!baseUrl) return "";
+  return `${baseUrl}/confirm-email.html?token=${encodeURIComponent(token)}`;
+}
+
+async function sendBrevoEmail({ toEmail, toName, subject, htmlContent, textContent }) {
+  if (!isBrevoConfigured()) {
+    return { success: false, skipped: true, message: "Brevo is not configured" };
+  }
+  const payload = {
+    sender: {
+      email: BREVO_SENDER_EMAIL,
+      name: BREVO_SENDER_NAME
+    },
+    to: [{ email: sanitizeString(toEmail, 180), name: sanitizeString(toName, 120) || undefined }],
+    subject: sanitizeString(subject, 180),
+    htmlContent: String(htmlContent || ""),
+    textContent: String(textContent || "")
+  };
+
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": BREVO_API_KEY,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (_) {
+    data = null;
+  }
+  if (!response.ok) {
+    const message = data && data.message ? data.message : "Unable to send email";
+    return { success: false, skipped: false, message };
+  }
+  return {
+    success: true,
+    messageId: data && data.messageId ? data.messageId : null
+  };
+}
+
+function ensureRegistrationFields(registration) {
+  let changed = false;
+  if (typeof registration.emailConfirmed !== "boolean") {
+    registration.emailConfirmed = false;
+    changed = true;
+  }
+  if (registration.emailConfirmedAt !== null && typeof registration.emailConfirmedAt !== "string") {
+    registration.emailConfirmedAt = null;
+    changed = true;
+  }
+  if (registration.emailConfirmationTokenHash !== null && typeof registration.emailConfirmationTokenHash !== "string") {
+    registration.emailConfirmationTokenHash = null;
+    changed = true;
+  }
+  if (registration.emailConfirmationExpiresAt !== null && typeof registration.emailConfirmationExpiresAt !== "string") {
+    registration.emailConfirmationExpiresAt = null;
+    changed = true;
+  }
+  if (registration.emailConfirmationSentAt !== null && typeof registration.emailConfirmationSentAt !== "string") {
+    registration.emailConfirmationSentAt = null;
+    changed = true;
+  }
+  return changed;
+}
+
+function ensureRegistrationCollection(registrations) {
+  let changed = false;
+  registrations.forEach((registration) => {
+    if (registration && typeof registration === "object") {
+      if (ensureRegistrationFields(registration)) changed = true;
+    }
+  });
+  return changed;
+}
+
+function buildRegistrationConfirmationEmail({ registration, subEvent, event, confirmationLink }) {
+  const participantName = sanitizeString(registration && registration.name, 120) || "Participant";
+  const subEventName = sanitizeString(subEvent && subEvent.name, 160) || "Sub-event";
+  const eventName = sanitizeString(event && event.name, 160) || "Event";
+  const venue = sanitizeString((subEvent && subEvent.venue) || (event && event.venue), 180) || "-";
+  const date = sanitizeString((subEvent && subEvent.date) || (event && event.date), 60) || "-";
+
+  return {
+    subject: `Confirm your registration - ${subEventName}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
+        <h2 style="margin:0 0 12px 0;color:#111827">Confirm Your Registration</h2>
+        <p>Hi ${participantName},</p>
+        <p>You registered for <strong>${subEventName}</strong> under <strong>${eventName}</strong>.</p>
+        <p><strong>Date:</strong> ${date}<br/><strong>Venue:</strong> ${venue}</p>
+        <p>Please confirm your email to complete your registration record.</p>
+        <p style="margin:20px 0">
+          <a href="${confirmationLink}" style="background:#6366f1;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none;display:inline-block">Confirm Email</a>
+        </p>
+        <p>If the button does not work, copy this link:<br/>${confirmationLink}</p>
+        <p style="color:#6b7280">This link expires in ${EMAIL_CONFIRM_TTL_HOURS} hour(s).</p>
+      </div>
+    `,
+    text: [
+      `Hi ${participantName},`,
+      `You registered for ${subEventName} under ${eventName}.`,
+      `Date: ${date}`,
+      `Venue: ${venue}`,
+      `Confirm your email using this link: ${confirmationLink}`,
+      `This link expires in ${EMAIL_CONFIRM_TTL_HOURS} hour(s).`
+    ].join("\n")
+  };
+}
+
+function buildWinnerEmail({ registration, subEvent, event, placeLabel }) {
+  const participantName = sanitizeString(registration && registration.name, 120) || "Participant";
+  const subEventName = sanitizeString(subEvent && subEvent.name, 160) || "Sub-event";
+  const eventName = sanitizeString(event && event.name, 160) || "Event";
+
+  return {
+    subject: `${placeLabel} - ${subEventName} Results`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
+        <h2 style="margin:0 0 12px 0;color:#111827">Congratulations ${participantName}!</h2>
+        <p>You have secured <strong>${placeLabel}</strong> in <strong>${subEventName}</strong> (${eventName}).</p>
+        <p>Congratulations from the event management team.</p>
+      </div>
+    `,
+    text: [
+      `Congratulations ${participantName}!`,
+      `You secured ${placeLabel} in ${subEventName} (${eventName}).`,
+      "Congratulations from the event management team."
+    ].join("\n")
+  };
+}
+
+function findResultRecipient(registrations, subEventId, value) {
+  const needle = sanitizeString(value, 120).toLowerCase();
+  if (!needle) return null;
+  const pool = registrations.filter((reg) => Number(reg.subEventId) === Number(subEventId));
+  const byName = pool
+    .filter((reg) => sanitizeString(reg.name, 120).toLowerCase() === needle)
+    .sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+  if (byName.length > 0) return byName[0];
+
+  const byTeamCaptain = pool
+    .filter((reg) => reg.isTeamCaptain && sanitizeString(reg.teamName, 120).toLowerCase() === needle)
+    .sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+  if (byTeamCaptain.length > 0) return byTeamCaptain[0];
+
+  const byTeamMember = pool
+    .filter((reg) => sanitizeString(reg.teamName, 120).toLowerCase() === needle)
+    .sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+  if (byTeamMember.length > 0) return byTeamMember[0];
+
+  return null;
+}
+
+async function sendConfirmationEmailsForRegistrations({ req, registrations, targets, subEvent }) {
+  const response = {
+    requested: Array.isArray(targets) ? targets.length : 0,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    errors: []
+  };
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return { changed: false, summary: response };
+  }
+
+  const event = store.getEvents().find((item) => Number(item.id) === Number(subEvent && subEvent.eventId)) || null;
+  let changed = false;
+
+  for (const registration of targets) {
+    if (!registration || !registration.email) {
+      response.skipped += 1;
+      continue;
+    }
+    if (ensureRegistrationFields(registration)) changed = true;
+
+    const tokenData = createEmailConfirmationToken();
+    registration.emailConfirmed = false;
+    registration.emailConfirmedAt = null;
+    registration.emailConfirmationTokenHash = tokenData.hash;
+    registration.emailConfirmationExpiresAt = tokenData.expiresAt;
+    registration.emailConfirmationSentAt = new Date().toISOString();
+    changed = true;
+
+    const confirmationLink = buildEmailConfirmationLink(req, tokenData.token);
+    if (!confirmationLink) {
+      response.failed += 1;
+      response.errors.push({
+        registrationId: registration.id,
+        email: registration.email,
+        message: "APP_BASE_URL is missing and request host is unavailable"
+      });
+      continue;
+    }
+
+    if (!isBrevoConfigured()) {
+      response.skipped += 1;
+      continue;
+    }
+
+    const emailPayload = buildRegistrationConfirmationEmail({
+      registration,
+      subEvent,
+      event,
+      confirmationLink
+    });
+    const mailResult = await sendBrevoEmail({
+      toEmail: registration.email,
+      toName: registration.name,
+      subject: emailPayload.subject,
+      htmlContent: emailPayload.html,
+      textContent: emailPayload.text
+    });
+    if (mailResult.success) {
+      response.sent += 1;
+    } else if (mailResult.skipped) {
+      response.skipped += 1;
+    } else {
+      response.failed += 1;
+      response.errors.push({
+        registrationId: registration.id,
+        email: registration.email,
+        message: mailResult.message || "Unable to send confirmation email"
+      });
+    }
+  }
+
+  return { changed, summary: response };
+}
+
+async function sendWinnerResultEmails({ subEvent, event, previousResults, nextResults }) {
+  const summary = {
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    errors: []
+  };
+
+  if (!isBrevoConfigured()) {
+    summary.skipped = 3;
+    return summary;
+  }
+
+  const subEventId = Number(subEvent && subEvent.id);
+  if (!subEventId) return summary;
+  const registrations = store.getRegistrations();
+
+  const places = [
+    { key: "winner", label: "Winner" },
+    { key: "runnerUp", label: "Runner-up" },
+    { key: "thirdPlace", label: "Third Place" }
+  ];
+
+  for (const place of places) {
+    const nextValue = sanitizeString(nextResults && nextResults[place.key], 120);
+    const prevValue = sanitizeString(previousResults && previousResults[place.key], 120);
+    if (!nextValue) {
+      summary.skipped += 1;
+      continue;
+    }
+    if (nextValue.toLowerCase() === prevValue.toLowerCase()) {
+      summary.skipped += 1;
+      continue;
+    }
+
+    const recipient = findResultRecipient(registrations, subEventId, nextValue);
+    if (!recipient || !recipient.email) {
+      summary.failed += 1;
+      summary.errors.push({
+        place: place.label,
+        value: nextValue,
+        message: "No matching participant email found"
+      });
+      continue;
+    }
+
+    const winnerEmail = buildWinnerEmail({
+      registration: recipient,
+      subEvent,
+      event,
+      placeLabel: place.label
+    });
+    const mailResult = await sendBrevoEmail({
+      toEmail: recipient.email,
+      toName: recipient.name,
+      subject: winnerEmail.subject,
+      htmlContent: winnerEmail.html,
+      textContent: winnerEmail.text
+    });
+    if (mailResult.success) {
+      summary.sent += 1;
+    } else if (mailResult.skipped) {
+      summary.skipped += 1;
+    } else {
+      summary.failed += 1;
+      summary.errors.push({
+        place: place.label,
+        value: nextValue,
+        message: mailResult.message || "Unable to send winner email"
+      });
+    }
+  }
+  return summary;
 }
 
 function isValidEmail(value) {
@@ -522,6 +865,9 @@ app.post("/api/events", rateLimit(60), verifyToken, allowRoles("President"), (re
       winner: "",
       runnerUp: "",
       thirdPlace: "",
+      participants: [],
+      participantsUpdatedAt: null,
+      participantsUpdatedBy: null,
       updatedAt: null,
       updatedBy: null
     }
@@ -1020,7 +1366,7 @@ app.put("/api/subevents/:id", rateLimit(60), verifyToken, allowRoles("President"
 /* =========================
    UPDATE SUB-EVENT RESULTS (Coordinator/President)
 ========================= */
-app.put("/api/subevents/:id/results", rateLimit(60), verifyToken, allowRoles("Coordinator", "President"), (req, res) => {
+app.put("/api/subevents/:id/results", rateLimit(60), verifyToken, allowRoles("Coordinator", "President"), async (req, res) => {
   const id = toSafeInt(req.params.id);
   if (!id) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
 
@@ -1056,6 +1402,11 @@ app.put("/api/subevents/:id/results", rateLimit(60), verifyToken, allowRoles("Co
   const participantsUpdatedBy = typeof subEvent.results.participantsUpdatedBy === "string"
     ? subEvent.results.participantsUpdatedBy
     : null;
+  const previousResults = {
+    winner: sanitizeString(subEvent.results.winner, 120),
+    runnerUp: sanitizeString(subEvent.results.runnerUp, 120),
+    thirdPlace: sanitizeString(subEvent.results.thirdPlace, 120)
+  };
 
   subEvent.results = {
     winner,
@@ -1076,7 +1427,14 @@ app.put("/api/subevents/:id/results", rateLimit(60), verifyToken, allowRoles("Co
     details: `Sub-event ${subEvent.id}: ${subEvent.name} (Event ${event.id}: ${event.name})`
   });
 
-  res.json({ success: true, results: subEvent.results, subEvent, event });
+  const emailSummary = await sendWinnerResultEmails({
+    subEvent,
+    event,
+    previousResults,
+    nextResults: subEvent.results
+  });
+
+  res.json({ success: true, results: subEvent.results, subEvent, event, emailSummary });
 });
 
 /* =========================
@@ -1152,7 +1510,7 @@ app.delete("/api/subevents/:id", rateLimit(30), verifyToken, allowRoles("Preside
 /* =========================
    REGISTER STUDENT
 ========================= */
-app.post("/api/register", rateLimit(40), (req, res) => {
+app.post("/api/register", rateLimit(40), async (req, res) => {
   const subEventId = toSafeInt(req.body.subEventId);
   const transactionId = sanitizeString(req.body.transactionId, 80);
   const teamName = sanitizeString(req.body.teamName, 120);
@@ -1238,13 +1596,27 @@ app.post("/api/register", rateLimit(40), (req, res) => {
         teamName: resolvedTeamName,
         teamSize: normalizedMembers.length,
         isTeamCaptain: index === 0,
-        memberIndex: member.memberIndex
+        memberIndex: member.memberIndex,
+        emailConfirmed: false,
+        emailConfirmedAt: null,
+        emailConfirmationTokenHash: null,
+        emailConfirmationExpiresAt: null,
+        emailConfirmationSentAt: null
       };
       registrations.push(newReg);
       created.push(newReg);
     });
 
     store.saveRegistrations(registrations);
+    const teamMail = await sendConfirmationEmailsForRegistrations({
+      req,
+      registrations,
+      targets: created,
+      subEvent
+    });
+    if (teamMail.changed) {
+      store.saveRegistrations(registrations);
+    }
     logAudit({
       action: "Register Team",
       actor: "Public",
@@ -1258,7 +1630,8 @@ app.post("/api/register", rateLimit(40), (req, res) => {
         teamName: resolvedTeamName,
         size: created.length
       },
-      registrations: created
+      registrations: created,
+      emailConfirmation: teamMail.summary
     });
   }
 
@@ -1292,18 +1665,146 @@ app.post("/api/register", rateLimit(40), (req, res) => {
     subEventId,
     transactionId: transactionId || "",
     paymentStatus: "Pending",
-    attendance: false
+    attendance: false,
+    emailConfirmed: false,
+    emailConfirmedAt: null,
+    emailConfirmationTokenHash: null,
+    emailConfirmationExpiresAt: null,
+    emailConfirmationSentAt: null
   };
 
   registrations.push(newReg);
   store.saveRegistrations(registrations);
+  const singleMail = await sendConfirmationEmailsForRegistrations({
+    req,
+    registrations,
+    targets: [newReg],
+    subEvent
+  });
+  if (singleMail.changed) {
+    store.saveRegistrations(registrations);
+  }
   logAudit({
     action: "Register Student",
     actor: "Public",
     role: "Student",
     details: `Registration ${newReg.id} for sub-event ${newReg.subEventId}`
   });
-  res.json({ success: true, registration: newReg });
+  res.json({ success: true, registration: newReg, emailConfirmation: singleMail.summary });
+});
+
+/* =========================
+   CONFIRM PARTICIPANT EMAIL
+========================= */
+app.get("/api/registrations/confirm-email", rateLimit(40), (req, res) => {
+  const token = sanitizeString(req.query.token, 220);
+  if (!token) {
+    return res.status(400).json({ success: false, message: "Confirmation token is required" });
+  }
+
+  const registrations = store.getRegistrations();
+  let changed = false;
+  if (ensureRegistrationCollection(registrations)) changed = true;
+
+  const now = Date.now();
+  const tokenHash = hashToken(token);
+  const registration = registrations.find((item) => item.emailConfirmationTokenHash === tokenHash);
+  if (!registration) {
+    if (changed) store.saveRegistrations(registrations);
+    return res.status(404).json({ success: false, message: "Invalid or expired confirmation token" });
+  }
+  const expiresAt = Date.parse(registration.emailConfirmationExpiresAt || "");
+  if (!Number.isFinite(expiresAt) || expiresAt < now) {
+    if (changed) store.saveRegistrations(registrations);
+    return res.status(410).json({ success: false, message: "Confirmation link has expired. Please request a new one." });
+  }
+
+  registration.emailConfirmed = true;
+  registration.emailConfirmedAt = new Date().toISOString();
+  registration.emailConfirmationTokenHash = null;
+  registration.emailConfirmationExpiresAt = null;
+  registration.emailConfirmationSentAt = null;
+  changed = true;
+  store.saveRegistrations(registrations);
+
+  logAudit({
+    action: "Confirm Participant Email",
+    actor: "Public",
+    role: "Student",
+    details: `Registration ${registration.id} email confirmed`
+  });
+  res.json({
+    success: true,
+    message: "Email confirmed successfully",
+    registration: {
+      id: registration.id,
+      email: registration.email,
+      name: registration.name,
+      emailConfirmed: registration.emailConfirmed
+    }
+  });
+});
+
+/* =========================
+   RESEND EMAIL CONFIRMATION
+========================= */
+app.post("/api/registrations/resend-confirmation", rateLimit(20), async (req, res) => {
+  const registrationId = toSafeInt(req.body.registrationId);
+  const email = sanitizeString(req.body.email, 180).toLowerCase();
+  if (!registrationId) {
+    return res.status(400).json({ success: false, message: "Registration ID is required" });
+  }
+
+  const registrations = store.getRegistrations();
+  if (ensureRegistrationCollection(registrations)) {
+    store.saveRegistrations(registrations);
+  }
+  const registration = registrations.find((item) => item.id === registrationId);
+  if (!registration) {
+    return res.status(404).json({ success: false, message: "Registration not found" });
+  }
+  if (email && String(registration.email || "").toLowerCase() !== email) {
+    return res.status(403).json({ success: false, message: "Email does not match registration" });
+  }
+  if (registration.emailConfirmed) {
+    return res.json({ success: true, message: "Email already confirmed", alreadyConfirmed: true });
+  }
+
+  const lastSentAt = Date.parse(registration.emailConfirmationSentAt || "");
+  if (Number.isFinite(lastSentAt) && Date.now() - lastSentAt < EMAIL_CONFIRM_RESEND_SECONDS * 1000) {
+    const waitSeconds = Math.ceil((EMAIL_CONFIRM_RESEND_SECONDS * 1000 - (Date.now() - lastSentAt)) / 1000);
+    return res.status(429).json({ success: false, message: `Please wait ${waitSeconds}s before requesting again` });
+  }
+
+  const subEvent = store.getSubEvents().find((item) => item.id === Number(registration.subEventId));
+  if (!subEvent) {
+    return res.status(404).json({ success: false, message: "Sub-event not found for registration" });
+  }
+
+  const result = await sendConfirmationEmailsForRegistrations({
+    req,
+    registrations,
+    targets: [registration],
+    subEvent
+  });
+  if (result.changed) {
+    store.saveRegistrations(registrations);
+  }
+
+  logAudit({
+    action: "Resend Participant Confirmation Email",
+    actor: "Public",
+    role: "Student",
+    details: `Registration ${registration.id}`
+  });
+
+  res.json({
+    success: true,
+    summary: result.summary,
+    message: result.summary.sent > 0
+      ? "Confirmation email sent"
+      : (result.summary.skipped > 0 ? "Email sending skipped (provider not configured)" : "Unable to send email")
+  });
 });
 
 /* =========================
@@ -1312,7 +1813,11 @@ app.post("/api/register", rateLimit(40), (req, res) => {
 app.get("/api/registrations/:subEventId", (req, res) => {
   const subEventId = toSafeInt(req.params.subEventId);
   if (!subEventId) return res.status(400).json({ success: false, message: "Invalid sub-event id" });
-  const list = store.getRegistrations().filter(r => r.subEventId === subEventId);
+  const registrations = store.getRegistrations();
+  if (ensureRegistrationCollection(registrations)) {
+    store.saveRegistrations(registrations);
+  }
+  const list = registrations.filter(r => r.subEventId === subEventId);
   res.json(list);
 });
 
@@ -1366,7 +1871,12 @@ app.post("/api/registrations/manual", rateLimit(40), verifyToken, allowRoles("Co
     subEventId,
     transactionId: "",
     paymentStatus,
-    attendance: false
+    attendance: false,
+    emailConfirmed: true,
+    emailConfirmedAt: new Date().toISOString(),
+    emailConfirmationTokenHash: null,
+    emailConfirmationExpiresAt: null,
+    emailConfirmationSentAt: null
   };
 
   if (subEvent.participationType === "Team") {
