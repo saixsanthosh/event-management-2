@@ -363,6 +363,16 @@ function findResultRecipient(registrations, subEventId, value) {
   return null;
 }
 
+function findRegistrationByEmailAndSubEvent(registrations, subEventId, email) {
+  const targetSubEventId = Number(subEventId);
+  const needle = sanitizeString(email, 180).toLowerCase();
+  if (!targetSubEventId || !needle) return null;
+  return registrations.find((registration) =>
+    Number(registration.subEventId) === targetSubEventId &&
+    sanitizeString(registration.email, 180).toLowerCase() === needle
+  ) || null;
+}
+
 async function sendConfirmationEmailsForRegistrations({ req, registrations, targets, subEvent }) {
   const response = {
     requested: Array.isArray(targets) ? targets.length : 0,
@@ -1804,6 +1814,87 @@ app.post("/api/registrations/resend-confirmation", rateLimit(20), async (req, re
     message: result.summary.sent > 0
       ? "Confirmation email sent"
       : (result.summary.skipped > 0 ? "Email sending skipped (provider not configured)" : "Unable to send email")
+  });
+});
+
+/* =========================
+   RESEND EMAIL CONFIRMATION (BY EMAIL + SUB-EVENT)
+========================= */
+app.post("/api/registrations/resend-confirmation-by-email", rateLimit(20), async (req, res) => {
+  const subEventId = toSafeInt(req.body.subEventId);
+  const email = sanitizeString(req.body.email, 180).toLowerCase();
+  if (!subEventId || !email) {
+    return res.status(400).json({ success: false, message: "subEventId and email are required" });
+  }
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ success: false, message: "Invalid email" });
+  }
+
+  const registrations = store.getRegistrations();
+  if (ensureRegistrationCollection(registrations)) {
+    store.saveRegistrations(registrations);
+  }
+  const registration = findRegistrationByEmailAndSubEvent(registrations, subEventId, email);
+  if (!registration) {
+    return res.status(404).json({ success: false, message: "Registration not found for provided email and sub-event" });
+  }
+  if (registration.emailConfirmed) {
+    return res.json({
+      success: true,
+      message: "Email already confirmed",
+      alreadyConfirmed: true,
+      registrationId: registration.id
+    });
+  }
+
+  const lastSentAt = Date.parse(registration.emailConfirmationSentAt || "");
+  if (Number.isFinite(lastSentAt) && Date.now() - lastSentAt < EMAIL_CONFIRM_RESEND_SECONDS * 1000) {
+    const waitSeconds = Math.ceil((EMAIL_CONFIRM_RESEND_SECONDS * 1000 - (Date.now() - lastSentAt)) / 1000);
+    return res.status(429).json({ success: false, message: `Please wait ${waitSeconds}s before requesting again` });
+  }
+
+  const subEvent = store.getSubEvents().find((item) => item.id === Number(registration.subEventId));
+  if (!subEvent) {
+    return res.status(404).json({ success: false, message: "Sub-event not found for registration" });
+  }
+
+  const result = await sendConfirmationEmailsForRegistrations({
+    req,
+    registrations,
+    targets: [registration],
+    subEvent
+  });
+  if (result.changed) {
+    store.saveRegistrations(registrations);
+  }
+
+  logAudit({
+    action: "Resend Participant Confirmation Email By Email",
+    actor: "Public",
+    role: "Student",
+    details: `Registration ${registration.id}`
+  });
+
+  res.json({
+    success: true,
+    registrationId: registration.id,
+    summary: result.summary,
+    message: result.summary.sent > 0
+      ? "Confirmation email sent"
+      : (result.summary.skipped > 0 ? "Email sending skipped (provider not configured)" : "Unable to send email")
+  });
+});
+
+/* =========================
+   EMAIL CONFIG STATUS
+========================= */
+app.get("/api/email/config-status", (req, res) => {
+  res.json({
+    success: true,
+    brevoConfigured: isBrevoConfigured(),
+    appBaseUrlConfigured: Boolean(APP_BASE_URL),
+    senderEmailConfigured: Boolean(BREVO_SENDER_EMAIL),
+    senderNameConfigured: Boolean(BREVO_SENDER_NAME)
   });
 });
 

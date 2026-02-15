@@ -88,6 +88,13 @@
 <span>Pay With Razorpay</span>
 </button>
 
+<div style="margin-top:12px;display:flex;justify-content:center">
+  <button id="resendEmailBtn" class="login-btn" style="width:auto;padding:10px 14px;background:linear-gradient(135deg,#4c51bf,#5a67d8)">
+    <i class="fas fa-envelope"></i>
+    <span>Resend Confirmation Email</span>
+  </button>
+</div>
+
 <br><br>
 
 <div id="statusBox"></div>
@@ -104,6 +111,7 @@ const API_ORIGIN = window.location.origin;
 const statusBox = document.getElementById("statusBox");
 const feeLabel = document.getElementById("feeLabel");
 const payBtn = document.getElementById("payBtn");
+const resendEmailBtn = document.getElementById("resendEmailBtn");
 const REG_CACHE_KEY = "pendingRegistrationIds";
 
 let pendingRegistration = null;
@@ -187,7 +195,7 @@ async function registerIfNeeded() {
     const fingerprint = getPendingFingerprint(pendingRegistration);
     const cachedIds = readCachedRegistrationIds(fingerprint);
     if (cachedIds.length > 0) {
-        return cachedIds;
+        return { ids: cachedIds, emailSummary: null, fromCache: true };
     }
 
     const payload = pendingRegistration && pendingRegistration.participationType === "Team"
@@ -218,7 +226,59 @@ async function registerIfNeeded() {
     }
     localStorage.setItem("lastRegistrationId", ids[0]);
     writeCachedRegistrationIds(fingerprint, ids);
-    return ids;
+    return {
+        ids,
+        emailSummary: regData.emailConfirmation || null,
+        fromCache: false
+    };
+}
+
+function primaryEmailFromPending() {
+    if (!pendingRegistration) return "";
+    if (pendingRegistration.participationType === "Team") {
+        const members = Array.isArray(pendingRegistration.members) ? pendingRegistration.members : [];
+        return String(members[0] && members[0].email || "").trim();
+    }
+    return String(pendingRegistration.email || "").trim();
+}
+
+function emailStatusText(summary) {
+    if (!summary) return "";
+    const sent = Number(summary.sent || 0);
+    const failed = Number(summary.failed || 0);
+    const skipped = Number(summary.skipped || 0);
+    return `Email status -> Sent: ${sent}, Failed: ${failed}, Skipped: ${skipped}`;
+}
+
+async function resendConfirmationByEmail() {
+    if (!pendingRegistration || !pendingRegistration.subEventId) {
+        alert("No pending registration found");
+        return;
+    }
+    const email = primaryEmailFromPending();
+    if (!email) {
+        alert("No email available in pending registration");
+        return;
+    }
+
+    resendEmailBtn.disabled = true;
+    try {
+        const data = await fetchJSON(`${API_ORIGIN}/api/registrations/resend-confirmation-by-email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                subEventId: pendingRegistration.subEventId,
+                email
+            })
+        });
+        const statusText = emailStatusText(data.summary);
+        setStatus("success", `${data.message || "Confirmation email request completed"}${statusText ? `<br>${statusText}` : ""}`);
+    } catch (err) {
+        setStatus("pending", err.message || "Unable to resend confirmation email");
+        alert(err.message || "Unable to resend confirmation email");
+    } finally {
+        resendEmailBtn.disabled = false;
+    }
 }
 
 async function createRazorpayOrder(registrationIds) {
@@ -313,7 +373,14 @@ async function startPayment() {
     payBtn.disabled = true;
     try {
         setStatus("pending", "Preparing registration...");
-        const registrationIds = await registerIfNeeded();
+        const registrationInfo = await registerIfNeeded();
+        const registrationIds = registrationInfo.ids;
+        if (!registrationInfo.fromCache && registrationInfo.emailSummary) {
+            const info = emailStatusText(registrationInfo.emailSummary);
+            if (info) {
+                setStatus("pending", `Registration created.<br>${info}`);
+            }
+        }
         setStatus("pending", "Creating payment order...");
         const orderPayload = await createRazorpayOrder(registrationIds);
         setStatus("pending", "Opening Razorpay checkout...");
@@ -333,12 +400,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!pendingRegistration) {
         setStatus("pending", "No pending registration found. Please register again.");
         payBtn.disabled = true;
+        resendEmailBtn.disabled = true;
         return;
+    }
+    if (!primaryEmailFromPending()) {
+        resendEmailBtn.disabled = true;
     }
     await loadSubEvent();
 });
 
 payBtn.addEventListener("click", startPayment);
+resendEmailBtn.addEventListener("click", resendConfirmationByEmail);
 </script>
 
 <script src="js/main.js"></script>
